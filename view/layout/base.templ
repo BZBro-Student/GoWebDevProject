@@ -1,0 +1,23 @@
+package layout
+
+//used to generate the basic structure of the entire site, modify as needed for universal aspects of the website
+
+import "AGoTTHT/view/components"
+
+templ Base(content templ.Component) {
+	<!DOCTYPE html>
+	<html lang="en">
+		<head>
+			<title>Structured App</title>
+			<script src="https://unpkg.com/htmx.org@1.9.10"></script>
+			<link rel="stylesheet" href="/static/css/styles.css" />
+			<script src="/static/js/static.js"></script>
+		</head>
+		<body class="h-full bg-brand-surface text-brand-light antialiased">
+            @components.Navbar()
+			<main id="main-content">
+				@content
+			</main>
+		</body>
+	</html>
+}
