@@ -1,0 +1,33 @@
+# This workflow will build a golang project
+# For more information see: https://docs.github.com/en/actions/automating-builds-and-tests/building-and-testing-go
+name: Go Tests
+
+on:
+  push:
+    branches: [ "main", "master" ]
+  pull_request:
+    branches: [ "main", "master" ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      # 1. Check out repository code
+      - name: Check out code
+        uses: actions/checkout@v4
+
+      # 2. Set up Go environment
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: 'go.mod' # Dynamically reads Go version from go.mod
+          cache: true               # Enables module caching automatically
+
+      # 3. Download dependencies
+      - name: Install dependencies
+        run: go mod download
+
+      # 4. Run tests with race detection and coverage
+      - name: Run tests
+        run: go test -v -race -coverprofile=coverage.out ./...
