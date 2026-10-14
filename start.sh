@@ -42,11 +42,22 @@ if ! command -v air &> /dev/null; then
     go install github.com/air-verse/air@latest
 fi
 
-# Build Tailwind CSS output from input.css using standalone CLI
-if [ -f assets/css/input.css ]; then
+# Install templ CLI if not already installed
+if ! command -v templ &> /dev/null; then
+    echo "Installing 'templ' template generator..."
+    go install github.com/a-h/templ/cmd/templ@latest
+fi
+
+# 1. Generate Go template code from .templ files
+echo "Generating Templ templates..."
+templ generate
+
+# 2. Build Tailwind CSS output from static/css/input.css
+if [ -f static/css/input.css ]; then
     echo "Building CSS with standalone Tailwind CLI..."
-    mkdir -p static/css
-    $TAILWIND_CMD -i assets/css/input.css -o static/css/styles.css --minify
+    $TAILWIND_CMD -i static/css/input.css -o static/css/styles.css --minify
+else
+    echo "Warning: static/css/input.css not found. Skipping Tailwind build."
 fi
 
 # ==============================================================================

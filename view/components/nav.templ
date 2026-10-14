@@ -1,11 +1,21 @@
 package components
 
 templ Navbar() {
-	<nav class="h-full bg-brand-dark text-brand-light shadow-md  antialiased">
-		<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+	<nav class="w-full bg-brand-dark text-brand-light shadow-md antialiased">
+		<div class="mw-full px-4 sm:px-6 lg:px-8">
 			<div class="flex items-center justify-between h-16">
-				<div class="hidden md:flex space-x-4 ">
-					@Button("/","Home")
+				<div class="flex items-center space-x-4 ">
+					//TODO: All of these should lead to login page if they are not logged in
+					@Button("/","Desk")
+					@Button("/dictionary", "Dictionary")
+					@Button("/community", "Community")
+					@Button("/tutorial", "Tutorial")
+					//TODO: User management needs to hide admin when the user is not an admin
+					@Button("/admin", "Admin")
+				</div>
+				<div class="flex items-center space-x-4">
+					@Button("/help", "Help")
+					@Button("/settings", "Settings")
 				</div>
 			</div>
 		</div>
