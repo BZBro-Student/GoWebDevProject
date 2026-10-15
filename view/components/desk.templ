@@ -8,6 +8,7 @@ templ Desk() {
         <textarea 
             style="flex: 1; height: 100%; min-width: 200px; padding: 24px 16px; background-color: #2d2d2d; color: #ffffff; border: 1px solid #444444; border-radius: 6px; resize: horizontal; outline: none; box-sizing: border-box; line-height: 1.6; font-size: 15px; overflow-y: auto;" 
             readonly>Pane 2 Test</textarea>
+		@SideBar([]templ.Component{DocumentSearch(), TranslationAdder(), Chat()})
     </div>
 
 }

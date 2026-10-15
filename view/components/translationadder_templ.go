@@ -29,6 +29,10 @@ func TranslationAdder() templ.Component {
 			templ_7745c5c3_Var1 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<div class=\"flex flex-col gap-2 w-full\"><input type=\"text\" id=\"translation-input\" name=\"translation\" placeholder=\"Translation\" class=\"block w-full px-3 py-2 bg-brand-surface text-brand-light placeholder:text-brand-light/60 border border-brand-surface rounded-md focus:ring-2 focus:ring-brand-accent outline-none text-sm transition-colors\"><div class=\"grid grid-cols-2 gap-2\"><button type=\"button\" class=\"w-full text-brand-light hover:bg-brand-accent hover:text-white px-3 py-2 rounded-md text-sm font-medium border border-brand-surface transition-colors cursor-pointer text-center\">Add</button> <button type=\"button\" class=\"w-full text-brand-light hover:bg-brand-accent hover:text-white px-3 py-2 rounded-md text-sm font-medium border border-brand-surface transition-colors cursor-pointer text-center\">Remove</button></div><!-- Activity Log / Items Area --><div id=\"translation-log\" class=\"min-h-32 max-h-48 w-full p-3 bg-brand-surface/10 border border-brand-surface rounded-md overflow-y-auto space-y-1 text-xs text-brand-light/80\"><!-- Added and removed elements will populate here --></div></div>")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
 		return nil
 	})
 }

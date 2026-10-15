@@ -29,7 +29,7 @@ func SideBar(items []templ.Component) templ.Component {
 			templ_7745c5c3_Var1 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<div class=\"flex h-full relative\"><!-- Hidden Checkbox State Handler --><input type=\"checkbox\" id=\"sidebar-toggle\" class=\"peer hidden\"><!-- Sidebar Drawer --><aside class=\"w-64 h-full bg-[#2d2d2d] border-r border-[#444444] transition-all duration-300 ease-in-out overflow-hidden peer-checked:w-0 peer-checked:border-r-0\"><!-- Inner container with fixed width prevents text wrapping during collapse --><div class=\"w-64 p-4 h-full overflow-y-auto box-border\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<aside class=\"w-64 h-full bg-brand-dark text-brand-light border border-brand-surface rounded-2xl shadow-md antialiased p-4 overflow-y-auto box-border\"><div class=\"flex flex-col gap-6\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -39,7 +39,7 @@ func SideBar(items []templ.Component) templ.Component {
 				return templ_7745c5c3_Err
 			}
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, "</div></aside><!-- Toggle Button (Bound to Hidden Checkbox via label) --><label for=\"sidebar-toggle\" class=\"mt-3 z-10 flex items-center justify-center w-8 h-8 bg-[#2d2d2d] text-white border border-[#444444] border-l-0 rounded-r-md cursor-pointer hover:bg-[#3d3d3d] select-none transition-transform duration-300 peer-checked:rotate-180\" title=\"Toggle Sidebar\">&#10094;</label></div>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, "</div></aside>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

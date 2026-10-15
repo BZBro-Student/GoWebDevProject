@@ -1,5 +1,36 @@
 package components
 
 templ Dictionary() {
-	<h1>Dictionary</h1>
+    <div class="flex gap-4 w-full h-[calc(100vh-60px)] p-4 box-border">
+        <!-- Main Content Area -->
+        <div class="flex-1 flex flex-col items-center gap-4 h-full overflow-y-auto">
+            <!-- Centered & Outlined Search Bar -->
+            <div class="w-full max-w-md pt-6">
+                <input
+                    type="text"
+                    id="search-input"
+                    name="query"
+                    placeholder="Search..."
+                    class="block w-full px-4 py-2 bg-brand-surface text-brand-light placeholder:text-brand-light/60 border-2 border-brand-accent rounded-md focus:ring-2 focus:ring-brand-accent outline-none text-sm transition-colors text-center"
+                />
+            </div>
+
+            <button
+                type="button"
+                class="px-6 py-1.5 text-brand-light hover:bg-brand-accent hover:text-white rounded-md text-sm font-medium border border-brand-surface transition-colors cursor-pointer"
+            >
+                Search
+            </button>
+
+        
+            <div
+                id="text-output"
+                class="w-full flex-1 p-4 bg-brand-surface/10 border border-brand-surface rounded-md text-sm text-brand-light/80 overflow-y-auto whitespace-pre-wrap"
+            >
+                <p>Example - example</p>
+            </div>
+        </div>
+
+        @SideBar([]templ.Component{TranslationAdder(), Chat()})
+    </div>
 }
