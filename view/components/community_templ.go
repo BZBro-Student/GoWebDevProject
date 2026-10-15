@@ -29,7 +29,15 @@ func Community() templ.Component {
 			templ_7745c5c3_Var1 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<h1>Community</h1>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<div class=\"flex gap-4 w-full h-[calc(100vh-60px)] p-4 box-border\"><div class=\"flex-1 flex flex-col gap-4 h-full overflow-hidden\"><textarea class=\"w-full flex-1 py-6 px-4 bg-brand-dark text-white border border-[#444444] rounded-md outline-none box-border leading-relaxed text-[15px] overflow-y-auto resize-none\" readonly>Pane 1 Test</textarea> <textarea class=\"w-full flex-1 py-6 px-4 bg-brand-dark text-white border border-[#444444] rounded-md outline-none box-border leading-relaxed text-[15px] overflow-y-auto resize-none\" readonly>Pane 2 Test</textarea></div>")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = SideBar([]templ.Component{Chat()}).Render(ctx, templ_7745c5c3_Buffer)
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, "</div>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

@@ -29,7 +29,7 @@ func Desk() templ.Component {
 			templ_7745c5c3_Var1 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<div style=\"display: flex; gap: 16px; width: 100%; height: calc(100vh - 60px); box-sizing: border-box; padding: 16px;\"><textarea style=\"flex: 1; height: 100%; min-width: 200px; padding: 24px 16px; background-color: #2d2d2d; color: #ffffff; border: 1px solid #444444; border-radius: 6px; resize: horizontal; outline: none; box-sizing: border-box; line-height: 1.6; font-size: 15px; overflow-y: auto;\" readonly>Pane 1 Test</textarea> <textarea style=\"flex: 1; height: 100%; min-width: 200px; padding: 24px 16px; background-color: #2d2d2d; color: #ffffff; border: 1px solid #444444; border-radius: 6px; resize: horizontal; outline: none; box-sizing: border-box; line-height: 1.6; font-size: 15px; overflow-y: auto;\" readonly>Pane 2 Test</textarea>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<div class=\"flex gap-4 w-full h-[calc(100vh-60px)] box-border p-4\"><textarea class=\"flex-1 h-full min-w-[200px] py-6 px-4 bg-brand-dark text-white border border-[#444444] rounded-md resize-x outline-none box-border leading-relaxed text-[15px] overflow-y-auto\" readonly>Pane 1 Test</textarea> <textarea class=\"flex-1 h-full min-w-[200px] py-6 px-4 bg-brand-dark text-white border border-[#444444] rounded-md resize-x outline-none box-border leading-relaxed text-[15px] overflow-y-auto\" readonly>Pane 2 Test</textarea>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

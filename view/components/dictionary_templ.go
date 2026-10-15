@@ -29,15 +29,7 @@ func Dictionary() templ.Component {
 			templ_7745c5c3_Var1 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<div class=\"flex gap-4 w-full h-[calc(100vh-60px)] p-4 box-border\"><!-- Main Content Area --><div class=\"flex-1 flex flex-col items-center gap-4 h-full overflow-y-auto\"><!-- Centered & Outlined Search Bar --><div class=\"w-full max-w-md pt-6\"><input type=\"text\" id=\"search-input\" name=\"query\" placeholder=\"Search...\" class=\"block w-full px-4 py-2 bg-brand-surface text-brand-light placeholder:text-brand-light/60 border-2 border-brand-accent rounded-md focus:ring-2 focus:ring-brand-accent outline-none text-sm transition-colors text-center\"></div><!-- Single Search Button --><button type=\"button\" class=\"px-6 py-1.5 text-brand-light hover:bg-brand-accent hover:text-white rounded-md text-sm font-medium border border-brand-surface transition-colors cursor-pointer\">Search</button><!-- Text Output Area (Expands to fill remaining height) --><div id=\"text-output\" class=\"w-full flex-1 p-4 bg-brand-surface/10 border border-brand-surface rounded-md text-sm text-brand-light/80 overflow-y-auto whitespace-pre-wrap\"><p>Example - example</p></div></div><!-- Sidebar (Direct flex child matching Desk structure) -->")
-		if templ_7745c5c3_Err != nil {
-			return templ_7745c5c3_Err
-		}
-		templ_7745c5c3_Err = SideBar([]templ.Component{TranslationAdder(), Chat()}).Render(ctx, templ_7745c5c3_Buffer)
-		if templ_7745c5c3_Err != nil {
-			return templ_7745c5c3_Err
-		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, "</div>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<div class=\"flex flex-col gap-4 w-full h-[calc(100vh-60px)] p-4 box-border\"><div class=\"flex flex-col items-center gap-4 w-full\"><div class=\"w-full max-w-md pt-6\"><input type=\"text\" id=\"search-input\" name=\"query\" placeholder=\"Search...\" class=\"block w-full px-4 py-2 bg-brand-surface text-brand-light placeholder:text-brand-light/60 border-2 border-brand-accent rounded-md focus:ring-2 focus:ring-brand-accent outline-none text-sm transition-colors text-center\"></div><button type=\"button\" class=\"px-6 py-1.5 text-brand-light hover:bg-brand-accent hover:text-white rounded-md text-sm font-medium border border-brand-surface transition-colors cursor-pointer\">Search</button></div><textarea class=\"w-full flex-1 py-6 px-4 bg-brand-dark text-white border border-[#444444] rounded-md outline-none box-border leading-relaxed text-[15px] overflow-y-auto resize-none\" readonly>Pane 1 Test</textarea></div>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
