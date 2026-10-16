@@ -30,11 +30,14 @@ jobs:
           EC2_HOST: ${{ secrets.EC2_HOST }}
         run: |
           mkdir -p ~/.ssh
-          echo "$SSH_KEY" > /tmp/ec2_key.pem
-          chmod 600 /tmp/ec2_key.pem
+          echo "$SSH_KEY" > ~/.ssh/ec2_key.pem
+          chmod 600 ~/.ssh/ec2_key.pem
 
-          ./deploy/deploy.sh -h "$EC2_HOST" -i /tmp/ec2_key.pem
+          # Register host key to prevent interactive confirmation prompts
+          ssh-keyscan -H "$EC2_HOST" >> ~/.ssh/known_hosts
+
+          ./deploy/deploy.sh -h "$EC2_HOST" -i ~/.ssh/ec2_key.pem
 
       - name: Clean up temporary SSH Key
         if: always()
-        run: rm -f /tmp/ec2_key.pem
+        run: rm -f ~/.ssh/ec2_key.pem
