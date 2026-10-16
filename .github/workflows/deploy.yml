@@ -26,11 +26,11 @@ jobs:
 
       - name: Setup SSH Key & Run Deploy Script
         env:
-          SSH_KEY: ${{ secrets.EC2_SSH_KEY }}
+          SSH_KEY_B64: ${{ secrets.EC2_SSH_KEY }}
           EC2_HOST: ${{ secrets.EC2_HOST }}
         run: |
           mkdir -p ~/.ssh
-          echo "$SSH_KEY" > /tmp/ec2_key.pem
+          echo "$SSH_KEY_B64" | base64 -d > /tmp/ec2_key.pem
           chmod 600 /tmp/ec2_key.pem
 
           ./deploy/deploy.sh -h "$EC2_HOST" -i /tmp/ec2_key.pem
