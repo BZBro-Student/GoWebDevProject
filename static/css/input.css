@@ -1,4 +1,6 @@
 @import "tailwindcss";
+@source "../../**/*.templ";
+@source "../../**/*.go";
 
 @theme {
   --color-brand-dark: #1E201E;

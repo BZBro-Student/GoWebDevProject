@@ -1,0 +1,11 @@
+package components
+
+templ SideBar(items []templ.Component) {
+    <aside class="w-64 h-full bg-brand-dark text-brand-light border border-brand-surface rounded-2xl shadow-md antialiased p-4 overflow-y-auto box-border">
+        <div class="flex flex-col gap-6">
+            for _, item := range items {
+                @item
+            }
+        </div>
+    </aside>
+}

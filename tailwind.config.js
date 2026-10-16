@@ -1,9 +1,10 @@
 /** @type {import('tailwindcss').Config} */
 module.exports = {
   content: [
-    "./**/*.templ", // <-- Critical for Templ templates
+    "./**/*.templ",
+    "./**/*_templ.go",
     "./**/*.go",
-    "./**/*.html",
+    "./**/*.html"
   ],
   theme: {
     extend: {},

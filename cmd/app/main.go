@@ -13,7 +13,13 @@ func main() {
 
 	// 2. Register application routes
 	http.HandleFunc("/api/health", handler.HandleHealth)
-	http.HandleFunc("/", handler.HandleHome)
+	http.HandleFunc("/", handler.HandleDesk)
+	http.HandleFunc("/dictionary", handler.HandleDictionary)
+	http.HandleFunc("/community", handler.HandleCommunity)
+	http.HandleFunc("/tutorial", handler.HandleTutorial)
+	http.HandleFunc("/admin", handler.HandleAdmin)
+	http.HandleFunc("/help", handler.HandleHelp)
+	http.HandleFunc("/settings", handler.HandleSettings)
 
 	// 3. Start the server
 	fmt.Println("Server running on http://localhost:8080")

@@ -17,13 +17,61 @@ func renderHelper(w http.ResponseWriter, r *http.Request, component templ.Compon
 	}
 }
 
-// HandleHome serves the root path
-func HandleHome(w http.ResponseWriter, r *http.Request) {
+// Page handlers
+func HandleDesk(w http.ResponseWriter, r *http.Request) {
 	if r.URL.Path != "/" {
 		http.NotFound(w, r)
 		return
 	}
-	renderHelper(w, r, components.Home())
+	renderHelper(w, r, components.Desk())
+}
+
+func HandleDictionary(w http.ResponseWriter, r *http.Request) {
+	if r.URL.Path != "/dictionary" {
+		http.NotFound(w, r)
+		return
+	}
+	renderHelper(w, r, components.Dictionary())
+}
+
+func HandleCommunity(w http.ResponseWriter, r *http.Request) {
+	if r.URL.Path != "/community" {
+		http.NotFound(w, r)
+		return
+	}
+	renderHelper(w, r, components.Community())
+}
+
+func HandleTutorial(w http.ResponseWriter, r *http.Request) {
+	if r.URL.Path != "/tutorial" {
+		http.NotFound(w, r)
+		return
+	}
+	renderHelper(w, r, components.Tutorial())
+}
+
+func HandleAdmin(w http.ResponseWriter, r *http.Request) {
+	if r.URL.Path != "/admin" {
+		http.NotFound(w, r)
+		return
+	}
+	renderHelper(w, r, components.Admin())
+}
+
+func HandleHelp(w http.ResponseWriter, r *http.Request) {
+	if r.URL.Path != "/help" {
+		http.NotFound(w, r)
+		return
+	}
+	renderHelper(w, r, components.Help())
+}
+
+func HandleSettings(w http.ResponseWriter, r *http.Request) {
+	if r.URL.Path != "/settings" {
+		http.NotFound(w, r)
+		return
+	}
+	renderHelper(w, r, components.Settings())
 }
 
 // Health API
