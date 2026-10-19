@@ -21,6 +21,12 @@ jobs:
           go-version-file: 'go.mod'
           cache: true
 
+      - name: Install Tailwind CSS CLI
+        run: |
+          curl -sLO https://github.com/tailwindlabs/tailwindcss/releases/latest/download/tailwindcss-linux-x64
+          chmod +x tailwindcss-linux-x64
+          sudo mv tailwindcss-linux-x64 /usr/local/bin/tailwindcss
+
       - name: Make deploy script executable
         run: chmod +x ./deploy/deploy.sh
 
@@ -30,7 +36,8 @@ jobs:
           EC2_HOST: ${{ secrets.EC2_HOST }}
         run: |
           mkdir -p ~/.ssh
-          echo "$SSH_KEY" > /tmp/ec2_key.pem
+          # Preserve PEM multiline formatting and trailing newline
+          printf "%s\n" "$SSH_KEY" > /tmp/ec2_key.pem
           chmod 600 /tmp/ec2_key.pem
 
           ./deploy/deploy.sh -h "$EC2_HOST" -i /tmp/ec2_key.pem

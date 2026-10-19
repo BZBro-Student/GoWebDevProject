@@ -17,6 +17,16 @@ func renderHelper(w http.ResponseWriter, r *http.Request, component templ.Compon
 	}
 }
 
+func HandleLogin(w http.ResponseWriter, r *http.Request) {
+	if r.URL.Path != "/login" {
+		http.NotFound(w, r)
+		return
+	}
+
+	// Render your login component or page
+	renderHelper(w, r, components.Login())
+}
+
 // Page handlers
 func HandleDesk(w http.ResponseWriter, r *http.Request) {
 	if r.URL.Path != "/" {
