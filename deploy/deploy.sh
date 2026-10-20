@@ -68,7 +68,7 @@ $SSH_CMD "$REMOTE_USER@$HOST" "cd $REMOTE_APP_DIR && go mod download && go build
 # ==============================================================================
 echo "==> [4/6] Ensuring Nginx configuration & SSL for $DOMAIN..."
 
-$SSH_CMD "$REMOTE_USER@$HOST" bash -s <<REMOTE_SCRIPT
+$SSH_CMD "$REMOTE_USER@$HOST" "DOMAIN='$DOMAIN' bash -s" << 'REMOTE_SCRIPT'
 set -e
 
 # Only write initial HTTP config if Certbot hasn't configured SSL yet
@@ -81,13 +81,13 @@ server {
     location / {
         proxy_pass http://127.0.0.1:8080;
         proxy_http_version 1.1;
-        proxy_set_header Upgrade \\$http_upgrade;
+        proxy_set_header Upgrade \$http_upgrade;
         proxy_set_header Connection 'upgrade';
-        proxy_set_header Host \\$host;
-        proxy_cache_bypass \\$http_upgrade;
-        proxy_set_header X-Real-IP \\$remote_addr;
-        proxy_set_header X-Forwarded-For \\$proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto \\$scheme;
+        proxy_set_header Host \$host;
+        proxy_cache_bypass \$http_upgrade;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
     }
 }
 EOF
