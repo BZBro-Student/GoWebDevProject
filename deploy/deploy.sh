@@ -71,6 +71,13 @@ echo "==> [4/6] Ensuring Nginx configuration & SSL for $DOMAIN..."
 $SSH_CMD "$REMOTE_USER@$HOST" "DOMAIN='$DOMAIN' bash -s" << 'REMOTE_SCRIPT'
 set -e
 
+# Auto-install Certbot if missing on remote host
+if ! command -v certbot &> /dev/null; then
+    echo "Certbot not found on target server. Installing certbot and python3-certbot-nginx..."
+    sudo apt-get update -y
+    sudo apt-get install -y certbot python3-certbot-nginx
+fi
+
 # Only write initial HTTP config if Certbot hasn't configured SSL yet
 if ! sudo certbot certificates 2>/dev/null | grep -q "$DOMAIN"; then
     sudo tee /etc/nginx/sites-available/gowebdevproject > /dev/null <<EOF
