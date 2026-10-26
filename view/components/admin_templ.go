@@ -29,7 +29,15 @@ func Admin() templ.Component {
 			templ_7745c5c3_Var1 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<h1>Hello World</h1>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<div class=\"flex gap-4 w-full h-full text-brand-light\"><!-- Left / Main Content Workspace --><div class=\"flex-1 flex flex-col gap-4 overflow-auto\"><!-- Upload & Search Bar --><form hx-post=\"/upload\" hx-encoding=\"multipart/form-data\" hx-target=\"#terminal-out\" hx-swap=\"innerHTML\" class=\"flex items-start gap-6\"><!-- File Input & Add Button --><div class=\"flex flex-col items-end gap-2\"><input type=\"file\" name=\"doc_file\" required class=\"bg-brand-dark border border-brand-accent text-brand-light rounded-md px-3 py-1.5 text-xs file:mr-2 file:py-1 file:px-2 file:border-0 file:rounded-md file:bg-brand-surface file:text-brand-light file:hover:bg-brand-accent cursor-pointer outline-none focus:border-blue-500 min-w-[200px]\"> <button type=\"submit\" class=\"bg-brand-surface hover:bg-brand-accent border border-brand-accent text-brand-light px-4 py-1 rounded-md text-xs transition-colors cursor-pointer\">Add</button></div><!-- Search Input & Submit --><div class=\"flex items-center gap-2\"><input type=\"text\" name=\"search\" placeholder=\"Search\" class=\"bg-brand-dark border border-brand-accent text-brand-light rounded-md px-3 py-1.5 text-sm outline-none focus:border-blue-500 w-48 placeholder-brand-accent\"> <button type=\"button\" class=\"bg-brand-surface hover:bg-brand-accent border border-brand-accent text-brand-light px-4 py-1.5 rounded-md text-sm transition-colors cursor-pointer\">Submit</button></div></form><!-- Middle Section: Article Result Box --><div class=\"h-64 bg-brand-dark border-2 border-blue-500 rounded-md p-3 flex flex-col relative overflow-y-auto\"><div class=\"flex justify-between items-center mb-3\"><div class=\"bg-brand-surface border border-brand-accent px-3 py-1 rounded-md text-xs text-brand-light w-3/4\">Article Result</div><button type=\"button\" class=\"bg-red-950/60 hover:bg-red-900 border border-red-700 text-red-200 px-3 py-1 rounded-md text-xs transition-colors cursor-pointer\">Delete</button></div><div id=\"article-result-content\" class=\"flex-1 text-sm text-brand-light\"><!-- Processed content output goes here --></div></div><!-- Terminal Output Panel --><div id=\"terminal-out\" class=\"bg-brand-dark border border-brand-accent rounded-md p-4 flex-1 min-h-[160px] flex items-center justify-center font-mono text-sm overflow-auto\"><span class=\"text-3xl text-brand-accent font-light\">Terminal Out</span></div></div><!-- Right SideBar Column -->")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = SideBar([]templ.Component{Chat()}).Render(ctx, templ_7745c5c3_Buffer)
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, "</div>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
