@@ -66,6 +66,8 @@ func main() {
 	mux.Handle("/tutorial", requireAuth(handler.HandleTutorial))
 	mux.Handle("/admin", requireAdmin(handler.HandleAdmin))
 	mux.Handle("/upload", requireAdmin(handler.HandleUpload(database)))
+	mux.Handle("GET /search", requireAuth(handler.HandleSearch(database)))
+	mux.Handle("DELETE /documents/{id}", requireAdmin(handler.HandleDelete(database)))
 	mux.Handle("/help", requireAuth(handler.HandleHelp))
 	mux.Handle("/settings", requireAuth(handler.HandleSettings))
 	sessionHandler := sessionManager.LoadAndSave(mux)

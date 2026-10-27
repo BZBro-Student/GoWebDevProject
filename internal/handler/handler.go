@@ -7,8 +7,10 @@ import (
 	"bytes"
 	"crypto/rand"
 	"database/sql"
+	"errors"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"path/filepath"
 	"strings"
@@ -178,4 +180,61 @@ func generateUUID() string {
 	b := make([]byte, 16)
 	_, _ = rand.Read(b)
 	return fmt.Sprintf("%x-%x-%x-%x-%x", b[0:4], b[4:6], b[6:8], b[8:10], b[10:])
+}
+
+func HandleSearch(db *sql.DB) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		query := r.URL.Query().Get("q")
+		if query == "" {
+			components.ArticleResult(nil).Render(r.Context(), w)
+			return
+		}
+
+		// Search by exact ID, or matching title/content
+		queryStr := `
+		SELECT doc_id, title, content 
+		FROM document 
+		WHERE doc_id = ? OR title LIKE ? OR content LIKE ? 
+		LIMIT 1
+	`
+		searchPattern := "%" + query + "%"
+
+		var doc components.Document
+		err := db.QueryRow(queryStr, query, searchPattern, searchPattern).Scan(&doc.ID, &doc.Title, &doc.Content)
+
+		if err != nil {
+			if errors.Is(err, sql.ErrNoRows) {
+				// Document not found
+				components.ArticleResult(nil).Render(r.Context(), w)
+				return
+			}
+			// Log error and return empty state
+			log.Printf("Search database error: %v", err)
+			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+			return
+		}
+
+		// Render the found document
+		components.ArticleResult(&doc).Render(r.Context(), w)
+	}
+}
+
+func HandleDelete(db *sql.DB) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		docID := r.PathValue("id")
+		if docID == "" {
+			http.Error(w, "Missing document ID", http.StatusBadRequest)
+			return
+		}
+
+		_, err := db.Exec("DELETE FROM document WHERE doc_id = ?", docID)
+		if err != nil {
+			log.Printf("Delete database error: %v", err)
+			http.Error(w, "Failed to delete document", http.StatusInternalServerError)
+			return
+		}
+
+		// Return empty state to clear out the result box in HTMX
+		components.ArticleResult(nil).Render(r.Context(), w)
+	}
 }

@@ -8,6 +8,15 @@ package components
 import "github.com/a-h/templ"
 import templruntime "github.com/a-h/templ/runtime"
 
+import "fmt"
+
+// Document represents your article/document data model
+type Document struct {
+	ID      string
+	Title   string
+	Content string
+}
+
 func Admin() templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
@@ -29,7 +38,15 @@ func Admin() templ.Component {
 			templ_7745c5c3_Var1 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<div class=\"flex gap-4 w-full h-full text-brand-light\"><!-- Left / Main Content Workspace --><div class=\"flex-1 flex flex-col gap-4 overflow-auto\"><!-- Upload & Search Bar --><form hx-post=\"/upload\" hx-encoding=\"multipart/form-data\" hx-target=\"#terminal-out\" hx-swap=\"innerHTML\" class=\"flex items-start gap-6\"><!-- File Input & Add Button --><div class=\"flex flex-col items-end gap-2\"><input type=\"file\" name=\"doc_file\" required class=\"bg-brand-dark border border-brand-accent text-brand-light rounded-md px-3 py-1.5 text-xs file:mr-2 file:py-1 file:px-2 file:border-0 file:rounded-md file:bg-brand-surface file:text-brand-light file:hover:bg-brand-accent cursor-pointer outline-none focus:border-blue-500 min-w-[200px]\"> <button type=\"submit\" class=\"bg-brand-surface hover:bg-brand-accent border border-brand-accent text-brand-light px-4 py-1 rounded-md text-xs transition-colors cursor-pointer\">Add</button></div><!-- Search Input & Submit --><div class=\"flex items-center gap-2\"><input type=\"text\" name=\"search\" placeholder=\"Search\" class=\"bg-brand-dark border border-brand-accent text-brand-light rounded-md px-3 py-1.5 text-sm outline-none focus:border-blue-500 w-48 placeholder-brand-accent\"> <button type=\"button\" class=\"bg-brand-surface hover:bg-brand-accent border border-brand-accent text-brand-light px-4 py-1.5 rounded-md text-sm transition-colors cursor-pointer\">Submit</button></div></form><!-- Middle Section: Article Result Box --><div class=\"h-64 bg-brand-dark border-2 border-blue-500 rounded-md p-3 flex flex-col relative overflow-y-auto\"><div class=\"flex justify-between items-center mb-3\"><div class=\"bg-brand-surface border border-brand-accent px-3 py-1 rounded-md text-xs text-brand-light w-3/4\">Article Result</div><button type=\"button\" class=\"bg-red-950/60 hover:bg-red-900 border border-red-700 text-red-200 px-3 py-1 rounded-md text-xs transition-colors cursor-pointer\">Delete</button></div><div id=\"article-result-content\" class=\"flex-1 text-sm text-brand-light\"><!-- Processed content output goes here --></div></div><!-- Terminal Output Panel --><div id=\"terminal-out\" class=\"bg-brand-dark border border-brand-accent rounded-md p-4 flex-1 min-h-[160px] flex items-center justify-center font-mono text-sm overflow-auto\"><span class=\"text-3xl text-brand-accent font-light\">Terminal Out</span></div></div><!-- Right SideBar Column -->")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<div class=\"flex gap-4 w-full h-full text-brand-light\"><div class=\"flex-1 flex flex-col gap-4 overflow-auto\"><div class=\"flex items-start justify-between gap-6\"><!-- Upload Form --><form hx-post=\"/upload\" hx-encoding=\"multipart/form-data\" hx-target=\"#terminal-out\" hx-swap=\"innerHTML\" class=\"flex flex-col items-end gap-2\"><input type=\"file\" name=\"doc_file\" required class=\"bg-brand-dark border border-brand-accent text-brand-light rounded-md px-3 py-1.5 text-xs file:mr-2 file:py-1 file:px-2 file:border-0 file:rounded-md file:bg-brand-surface file:text-brand-light file:hover:bg-brand-accent cursor-pointer outline-none focus:border-blue-500 min-w-[200px]\"> <button type=\"submit\" class=\"bg-brand-surface hover:bg-brand-accent border border-brand-accent text-brand-light px-4 py-1 rounded-md text-xs transition-colors cursor-pointer\">Add</button></form><!-- Search Form --><form hx-get=\"/search\" hx-target=\"#article-result-container\" hx-swap=\"outerHTML\" class=\"flex items-center gap-2\"><input type=\"text\" name=\"q\" placeholder=\"Search\" class=\"bg-brand-dark border border-brand-accent text-brand-light rounded-md px-3 py-1.5 text-sm outline-none focus:border-blue-500 w-48 placeholder-brand-accent\"> <button type=\"submit\" class=\"bg-brand-surface hover:bg-brand-accent border border-brand-accent text-brand-light px-4 py-1.5 rounded-md text-sm transition-colors cursor-pointer\">Submit</button></form></div><!-- Article Result Container (Initial Empty State) -->")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = ArticleResult(nil).Render(ctx, templ_7745c5c3_Buffer)
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, "<!-- Terminal Output --><div id=\"terminal-out\" class=\"bg-brand-dark border border-brand-accent rounded-md p-4 flex-1 min-h-[160px] flex items-center justify-center font-mono text-sm overflow-auto\"><span class=\"text-3xl text-brand-accent font-light\">Terminal Out</span></div></div><!-- Right SideBar Column -->")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -37,7 +54,99 @@ func Admin() templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, "</div>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, "</div>")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		return nil
+	})
+}
+
+func ArticleResult(doc *Document) templ.Component {
+	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
+		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
+		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
+			return templ_7745c5c3_CtxErr
+		}
+		templ_7745c5c3_Buffer, templ_7745c5c3_IsBuffer := templruntime.GetBuffer(templ_7745c5c3_W)
+		if !templ_7745c5c3_IsBuffer {
+			defer func() {
+				templ_7745c5c3_BufErr := templruntime.ReleaseBuffer(templ_7745c5c3_Buffer)
+				if templ_7745c5c3_Err == nil {
+					templ_7745c5c3_Err = templ_7745c5c3_BufErr
+				}
+			}()
+		}
+		ctx = templ.InitializeContext(ctx)
+		templ_7745c5c3_Var2 := templ.GetChildren(ctx)
+		if templ_7745c5c3_Var2 == nil {
+			templ_7745c5c3_Var2 = templ.NopComponent
+		}
+		ctx = templ.ClearChildren(ctx)
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 4, "<div id=\"article-result-container\" class=\"h-64 bg-brand-dark border-2 border-blue-500 rounded-md p-3 flex flex-col relative overflow-y-auto\"><div class=\"flex justify-between items-center mb-3\"><div class=\"bg-brand-surface border border-brand-accent px-3 py-1 rounded-md text-xs text-brand-light w-3/4 truncate\">")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		if doc != nil && doc.Title != "" {
+			var templ_7745c5c3_Var3 string
+			templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.JoinStringErrs(doc.Title)
+			if templ_7745c5c3_Err != nil {
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `view/components/admin.templ`, Line: 78, Col: 16}
+			}
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var3))
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+		} else {
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 5, "Article Result")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 6, "</div>")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		if doc != nil {
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 7, "<button type=\"button\" hx-delete=\"")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			var templ_7745c5c3_Var4 string
+			templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.ResolveAttributeValue(fmt.Sprintf("/documents/%s", doc.ID))
+			if templ_7745c5c3_Err != nil {
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `view/components/admin.templ`, Line: 86, Col: 53}
+			}
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var4)
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 8, "\" hx-target=\"#article-result-container\" hx-swap=\"outerHTML\" hx-confirm=\"Are you sure you want to delete this document?\" class=\"bg-red-950/60 hover:bg-red-900 border border-red-700 text-red-200 px-3 py-1 rounded-md text-xs transition-colors cursor-pointer\">Delete</button>")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+		} else {
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 9, "<button type=\"button\" disabled class=\"bg-red-950/30 border border-red-900/40 text-red-400/40 px-3 py-1 rounded-md text-xs cursor-not-allowed\">Delete</button>")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 10, "</div><!-- Render unescaped HTML content --><div id=\"article-result-content\" class=\"flex-1 text-sm text-brand-light prose prose-invert max-w-none\">")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		if doc != nil {
+			templ_7745c5c3_Err = templ.Raw(doc.Content).Render(ctx, templ_7745c5c3_Buffer)
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+		} else {
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 11, "<span class=\"text-brand-accent/60 italic\">No document selected or found.</span>")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 12, "</div></div>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
