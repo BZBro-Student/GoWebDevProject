@@ -8,14 +8,25 @@ import (
 
 var syllables = []string{
 	"na", "ni", "nu", "ne", "no",
-	"ta", "ti", "tu", "te", "to",
-	"fa", "fi", "fu", "fe", "fo",
-	"la", "li", "lu", "le", "lo",
-	"sa", "si", "su", "se", "so",
 	"ma", "mi", "mu", "me", "mo",
-	"ka", "ki", "ku", "ke", "ko",
-	"pa", "pi", "pu", "pe", "po",
+	"la", "li", "lu", "le", "lo",
 	"ra", "ri", "ru", "re", "ro",
+	"pa", "pi", "pu", "pe", "po",
+	"ta", "ti", "tu", "te", "to",
+	"ka", "ki", "ku", "ke", "ko",
+	"fa", "fi", "fu", "fe", "fo",
+	"sa", "si", "su", "se", "so",
+	"ba", "bi", "bu", "be", "bo",
+	"da", "di", "du", "de", "do",
+	"ga", "gi", "gu", "ge", "go",
+	"ha", "hi", "hu", "he", "ho",
+	"wa", "wi", "wu", "we", "wo",
+	"ya", "yi", "yu", "ye", "yo",
+	"va", "vi", "vu", "ve", "vo",
+	"za", "zi", "zu", "ze", "zo",
+	"cha", "chi", "chu", "che", "cho",
+	"sha", "shi", "shu", "she", "sho",
+	"tha", "thi", "thu", "the", "tho",
 }
 
 func hashWord(s string) int64 {
@@ -52,14 +63,18 @@ func sampleSyllableCount(r *rand.Rand) int {
 	return 3
 }
 
-// GenerateForeignWord deterministically produces a syllable-based word
 func GenerateForeignWord(englishWord string) string {
+	englishWord = strings.Map(func(r rune) rune {
+		if (r >= '0' && r <= '9') || r == ':' {
+			return -1 // Returning -1 drops the character
+		}
+		return r
+	}, englishWord)
+
 	englishWord = strings.TrimSpace(englishWord)
 	if englishWord == "" {
 		return ""
 	}
-
-	// Deterministic seed ensures the same English word always yields the exact same foreign word
 	r := rand.New(rand.NewSource(hashWord(englishWord)))
 	syllableCount := sampleSyllableCount(r)
 

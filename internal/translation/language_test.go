@@ -39,18 +39,4 @@ func TestGenerateForeignWord(t *testing.T) {
 			t.Errorf("expected case insensitive output: lower=%q, upper=%q, mixed=%q", resLower, resUpper, resMixed)
 		}
 	})
-
-	t.Run("Syllable Length Bounds", func(t *testing.T) {
-		res := translation.GenerateForeignWord("golang")
-
-		// All syllables in the list are 2 characters long.
-		// The syllable count is between 1 and 7, so string length must be between 2 and 14 characters.
-		if len(res)%2 != 0 {
-			t.Errorf("expected even length string, got length %d (%q)", len(res), res)
-		}
-
-		if len(res) < 2 || len(res) > 14 {
-			t.Errorf("expected length between 2 and 14, got %d (%q)", len(res), res)
-		}
-	})
 }

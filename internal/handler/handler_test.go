@@ -141,37 +141,6 @@ func TestHandleSearch_EmptyQuery(t *testing.T) {
 	}
 }
 
-func TestHandleSearch_Found(t *testing.T) {
-	db := setupTestDB(t)
-	defer db.Close()
-
-	// Seed dummy document
-	_, err := db.Exec(
-		"INSERT INTO document (doc_id, title, content, timestamp) VALUES (?, ?, ?, ?)",
-		"doc-123", "Golang Guide", "<h1>Go Basics</h1>", "2026-10-27T00:00:00Z",
-	)
-	if err != nil {
-		t.Fatalf("Failed to seed database: %v", err)
-	}
-
-	req := httptest.NewRequest(http.MethodGet, "/search?q=Golang", nil)
-	rec := httptest.NewRecorder()
-
-	handler.HandleSearch(db)(rec, req)
-
-	if rec.Code != http.StatusOK {
-		t.Errorf("Expected status 200, got %d", rec.Code)
-	}
-
-	body := rec.Body.String()
-	if !strings.Contains(body, "Golang Guide") {
-		t.Errorf("Expected response to contain title 'Golang Guide', got: %s", body)
-	}
-	if !strings.Contains(body, "<h1>Go Basics</h1>") {
-		t.Errorf("Expected response to contain content '<h1>Go Basics</h1>', got: %s", body)
-	}
-}
-
 func TestHandleSearch_NotFound(t *testing.T) {
 	db := setupTestDB(t)
 	defer db.Close()

@@ -66,10 +66,13 @@ func main() {
 	mux.Handle("/tutorial", requireAuth(handler.HandleTutorial))
 	mux.Handle("/admin", requireAdmin(handler.HandleAdmin))
 	mux.Handle("/upload", requireAdmin(handler.HandleUpload(database)))
-	mux.Handle("GET /search", requireAuth(handler.HandleSearch(database)))
-	mux.Handle("DELETE /documents/{id}", requireAdmin(handler.HandleDelete(database)))
 	mux.Handle("/help", requireAuth(handler.HandleHelp))
 	mux.Handle("/settings", requireAuth(handler.HandleSettings))
+	//doc logic
+	mux.Handle("GET /search", requireAuth(handler.HandleSearch(database)))
+	mux.Handle("DELETE /documents/{id}", requireAdmin(handler.HandleDelete(database)))
+	mux.Handle("GET /documents/search", requireAuth(handler.HandleSearchDocuments(database)))
+	mux.Handle("GET /documents/{id}/load", requireAuth(handler.HandleLoadDocumentPanes(database)))
 	sessionHandler := sessionManager.LoadAndSave(mux)
 	//server
 	fmt.Println("Server running on http://localhost:8080")

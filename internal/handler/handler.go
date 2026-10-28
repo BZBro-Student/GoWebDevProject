@@ -45,7 +45,7 @@ func HandleDesk(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-	renderHelper(w, r, components.Desk())
+	renderHelper(w, r, components.Desk(nil, ""))
 }
 
 func HandleDictionary(w http.ResponseWriter, r *http.Request) {
@@ -236,5 +236,83 @@ func HandleDelete(db *sql.DB) http.HandlerFunc {
 
 		// Return empty state to clear out the result box in HTMX
 		components.ArticleResult(nil).Render(r.Context(), w)
+	}
+}
+
+// HandleSearchDocuments searches for matching documents and renders SearchResultsList for the sidebar
+func HandleSearchDocuments(db *sql.DB) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		query := strings.TrimSpace(r.URL.Query().Get("q"))
+		if query == "" {
+			components.SearchResultsList([]components.SearchResultItem{}).Render(r.Context(), w)
+			return
+		}
+
+		queryStr := `
+			SELECT doc_id, title, SUBSTR(content, 1, 80) AS match 
+			FROM document 
+			WHERE title LIKE ? OR content LIKE ? 
+			LIMIT 10
+		`
+		searchPattern := "%" + query + "%"
+
+		rows, err := db.Query(queryStr, searchPattern, searchPattern)
+		if err != nil {
+			log.Printf("Search database error: %v", err)
+			http.Error(w, "Search failed", http.StatusInternalServerError)
+			return
+		}
+		defer rows.Close()
+
+		var results []components.SearchResultItem
+		for rows.Next() {
+			var item components.SearchResultItem
+			if err := rows.Scan(&item.ID, &item.Title, &item.Match); err == nil {
+				results = append(results, item)
+			}
+		}
+
+		components.SearchResultsList(results).Render(r.Context(), w)
+	}
+}
+
+// HandleLoadDocumentPanes fetches English HTML, translates it, and populates both Desk panes
+func HandleLoadDocumentPanes(db *sql.DB) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		docID := r.PathValue("id")
+		if docID == "" {
+			docID = r.URL.Query().Get("id")
+		}
+
+		if docID == "" {
+			http.Error(w, "Missing document ID", http.StatusBadRequest)
+			return
+		}
+
+		var doc components.Document
+		queryStr := `SELECT doc_id, title, content FROM document WHERE doc_id = ?`
+		err := db.QueryRow(queryStr, docID).Scan(&doc.ID, &doc.Title, &doc.Content)
+		if err != nil {
+			if errors.Is(err, sql.ErrNoRows) {
+				http.Error(w, "Document not found", http.StatusNotFound)
+				return
+			}
+			log.Printf("Failed to fetch document: %v", err)
+			http.Error(w, "Database error", http.StatusInternalServerError)
+			return
+		}
+
+		dict, err := translation.LoadDictionary(db)
+		if err != nil {
+			log.Printf("Error loading dictionary: %v", err)
+		}
+
+		translatedHTML, err := translation.TranslateHTML(doc.Content, dict)
+		if err != nil {
+			log.Printf("Error translating HTML: %v", err)
+			translatedHTML = doc.Content
+		}
+
+		components.DocumentPanesResponse(doc.Content, translatedHTML).Render(r.Context(), w)
 	}
 }

@@ -1,11 +1,28 @@
 package components
 
+import "fmt"
+
+type SearchResultItem struct {
+    ID    string
+    Title string
+    Match string
+}
+
+
+
 templ DocumentSearch() {
     <div class="w-full max-w-md p-4 bg-brand-dark text-brand-light border border-brand-surface rounded-2xl shadow-md antialiased flex flex-col gap-4">
-        <form class="flex flex-col gap-3">
+        <form 
+            hx-get="/documents/search"
+            hx-target="#search-results"
+            hx-swap="innerHTML"
+            hx-trigger="submit, keyup changed delay:300ms from:#search-input"
+            class="flex flex-col gap-3"
+        >
             <div>
                 <input
                     type="search"
+                    name="q"
                     id="search-input"
                     placeholder="Search here..."
                     class="block w-full px-3 py-2 bg-brand-surface text-brand-light placeholder:text-brand-light/60 border border-brand-surface rounded-md focus:ring-2 focus:ring-brand-accent outline-none text-sm transition-colors"
@@ -14,19 +31,40 @@ templ DocumentSearch() {
             <div>
                 <button
                     type="submit"
-                    class="w-full text-brand-light hover:bg-brand-accent hover:text-white px-3 py-2 rounded-md text-sm font-medium transition-colors cursor-pointer"
+                    class="w-full text-brand-light hover:bg-brand-accent hover:text-white px-3 py-2 rounded-md text-sm font-medium transition-colors cursor-pointer bg-brand-surface"
                 >
                     Search
                 </button>
             </div>
         </form>
+
         <div 
             id="search-results" 
             class="max-h-64 overflow-y-auto p-3 bg-brand-surface/40 border border-brand-surface rounded-md flex flex-col gap-2 text-sm"
         >
             <p class="text-xs text-brand-light/60 text-center py-6">
-                Results
+                Type above to search documents...
             </p>
         </div>
     </div>
+}
+
+templ SearchResultsList(results []SearchResultItem) {
+    if len(results) == 0 {
+        <p class="text-xs text-brand-light/60 text-center py-4">No matching documents found.</p>
+    } else {
+        for _, item := range results {
+            <button
+                hx-get={ fmt.Sprintf("/documents/%s/load", item.ID) }
+                hx-target="#pane-source"
+                hx-swap="innerHTML"
+                class="w-full text-left p-2.5 rounded-md hover:bg-brand-surface transition-colors border border-transparent hover:border-brand-accent/40 group cursor-pointer"
+            >
+                <div class="font-medium text-xs text-brand-light group-hover:text-white">{ item.Title }</div>
+                if item.Match != "" {
+                    <div class="text-[11px] text-brand-light/60 truncate mt-0.5">{ item.Match }</div>
+                }
+            </button>
+        }
+    }
 }
