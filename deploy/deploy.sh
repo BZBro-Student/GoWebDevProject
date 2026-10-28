@@ -68,6 +68,46 @@ $SSH_CMD "$REMOTE_USER@$HOST" "cd $REMOTE_APP_DIR && go mod download && go build
 # ==============================================================================
 echo "==> [4/6] Ensuring Nginx configuration & SSL for $DOMAIN..."
 
+$SSH_CMD "$REMOTE_USER@$HOST" bash -s <<REMOTE_SCRIPT
+set -e
+
+# Only write initial HTTP config if Certbot hasn't configured SSL yet
+if ! sudo certbot certificates 2>/dev/null | grep -q "$DOMAIN"; then
+    sudo tee /etc/nginx/sites-available/gowebdevproject > /dev/null <<EOF
+server {
+    listen 80;
+    server_name $DOMAIN;
+
+    location / {
+        proxy_pass http://127.0.0.1:8080;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade \$http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host \$host;
+        proxy_cache_bypass \$http_upgrade;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+    }
+}
+EOF
+
+    sudo ln -sf /etc/nginx/sites-available/gowebdevproject /etc/nginx/sites-enabled/
+    sudo rm -f /etc/nginx/sites-enabled/default
+    sudo nginx -t
+    sudo systemctl reload nginx
+
+    echo "Requesting SSL certificate from Let's Encrypt for $DOMAIN..."
+    sudo certbot --nginx -d "$DOMAIN" --non-interactive --agree-tos --register-unsafely-without-email --redirect
+else
+    echo "SSL certificate already active for $DOMAIN. Reloading Nginx..."
+    sudo nginx -t
+    sudo systemctl reload nginx
+fi
+REMOTE_SCRIPT
+
+# ==============================================================================
+# Step 5: Restart Application Service
 $SSH_CMD "$REMOTE_USER@$HOST" "DOMAIN='$DOMAIN' bash -s" << 'REMOTE_SCRIPT'
 set -e
 

@@ -1,0 +1,19 @@
+package components
+
+templ DocumentPanesResponse(sourceContent string, translatedContent string) {
+    <!-- Main response target: Swaps into #pane-source -->
+    <iframe
+        srcdoc={ sourceContent }
+        class="w-full h-full border-0 bg-white rounded"
+        sandbox="allow-same-origin"
+    ></iframe>
+
+    <!-- HTMX OOB Target: Swaps into #pane-translated -->
+    <div id="pane-translated" hx-swap-oob="innerHTML">
+        <iframe
+            srcdoc={ translatedContent }
+            class="w-full h-full border-0 bg-white rounded"
+            sandbox="allow-same-origin"
+        ></iframe>
+    </div>
+}
