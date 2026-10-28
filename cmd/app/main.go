@@ -75,6 +75,10 @@ func main() {
 	mux.Handle("GET /documents/{id}/load", requireAuth(handler.HandleLoadDocumentPanes(database)))
 	sessionHandler := sessionManager.LoadAndSave(mux)
 	//server
+	mux.Handle("/help", requireAuth(handler.HandleHelp))
+	mux.Handle("/settings", requireAuth(handler.HandleSettings))
+	sessionHandler := sessionManager.LoadAndSave(mux)
+	//server
 	fmt.Println("Server running on http://localhost:8080")
 	port := os.Getenv("PORT")
 	if port == "" {

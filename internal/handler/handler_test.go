@@ -244,13 +244,103 @@ func TestHandleUpload_MarkdownFile(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Document was not inserted into database: %v", err)
 	}
+	"net/http"
+	"net/http/httptest"
+	"testing"
+)
+
+func TestHandleLoginPage(t *testing.T) {
+	req := httptest.NewRequest(http.MethodGet, "/login", nil)
+	rec := httptest.NewRecorder()
+
+	handler.HandleLogin(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Errorf("Expected status 200, got %d", rec.Code)
+	}
+}
+
+func TestHandleDeskPage(t *testing.T) {
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	rec := httptest.NewRecorder()
+
+	handler.HandleDesk(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Errorf("Expected status 200, got %d", rec.Code)
+	}
+}
+
+func TestHandleDictionaryPage(t *testing.T) {
+	req := httptest.NewRequest(http.MethodGet, "/dictionary", nil)
+	rec := httptest.NewRecorder()
+
+	handler.HandleDictionary(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Errorf("Expected status 200, got %d", rec.Code)
+	}
+}
+
+func TestHandleCommunityPage(t *testing.T) {
+	req := httptest.NewRequest(http.MethodGet, "/community", nil)
+	rec := httptest.NewRecorder()
+
+	handler.HandleCommunity(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Errorf("Expected status 200, got %d", rec.Code)
+	}
+}
+
+func TestHandleTutorialPage(t *testing.T) {
+	req := httptest.NewRequest(http.MethodGet, "/tutorial", nil)
+	rec := httptest.NewRecorder()
+
+	handler.HandleTutorial(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Errorf("Expected status 200, got %d", rec.Code)
+	}
+}
+
+func TestHandleAdminPage(t *testing.T) {
+	req := httptest.NewRequest(http.MethodGet, "/admin", nil)
+	rec := httptest.NewRecorder()
+
+	handler.HandleAdmin(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Errorf("Expected status 200, got %d", rec.Code)
+	}
+}
+
+func TestHandleHelpPage(t *testing.T) {
+	req := httptest.NewRequest(http.MethodGet, "/help", nil)
+	rec := httptest.NewRecorder()
+
+	handler.HandleHelp(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Errorf("Expected status 200, got %d", rec.Code)
+	}
+}
+
+func TestHandleSettingsPage(t *testing.T) {
+	req := httptest.NewRequest(http.MethodGet, "/settings", nil)
+	rec := httptest.NewRecorder()
 
 	if title != "sample.md" {
 		t.Errorf("Expected title 'sample.md', got '%s'", title)
 	}
+	handler.HandleSettings(rec, req)
 
 	// Goldmark converts `# Test Header` to `<h1>Test Header</h1>`
 	if !strings.Contains(content, "<h1>Test Header</h1>") {
 		t.Errorf("Expected converted HTML content, got '%s'", content)
+	}
+}
+	if rec.Code != http.StatusOK {
+		t.Errorf("Expected status 200, got %d", rec.Code)
 	}
 }
