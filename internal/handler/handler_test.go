@@ -107,15 +107,14 @@ func setupTestDB(t *testing.T) *sql.DB {
 		t.Fatalf("Failed to open in-memory database: %v", err)
 	}
 
-	// Create document schema matching handler expectations
 	schema := `
-	CREATE TABLE IF NOT EXISTS document (
-		doc_id TEXT PRIMARY KEY,
-		title TEXT NOT NULL,
-		content TEXT NOT NULL,
-		timestamp TEXT NOT NULL
-	);
-	`
+    CREATE TABLE IF NOT EXISTS document (
+        doc_id TEXT PRIMARY KEY,
+        title TEXT NOT NULL,
+        content TEXT NOT NULL,
+        timestamp TEXT NOT NULL
+    );
+    `
 	if _, err := db.Exec(schema); err != nil {
 		t.Fatalf("Failed to create document table: %v", err)
 	}
@@ -163,7 +162,6 @@ func TestHandleDelete_Success(t *testing.T) {
 	db := setupTestDB(t)
 	defer db.Close()
 
-	// Seed document to delete
 	docID := "doc-to-delete-123"
 	_, err := db.Exec(
 		"INSERT INTO document (doc_id, title, content, timestamp) VALUES (?, ?, ?, ?)",
@@ -174,7 +172,6 @@ func TestHandleDelete_Success(t *testing.T) {
 	}
 
 	req := httptest.NewRequest(http.MethodDelete, "/documents/"+docID, nil)
-	// Go 1.22+ path value matching
 	req.SetPathValue("id", docID)
 
 	rec := httptest.NewRecorder()
@@ -185,7 +182,6 @@ func TestHandleDelete_Success(t *testing.T) {
 		t.Errorf("Expected status 200, got %d", rec.Code)
 	}
 
-	// Verify document was removed from database
 	var count int
 	err = db.QueryRow("SELECT COUNT(*) FROM document WHERE doc_id = ?", docID).Scan(&count)
 	if err != nil {
@@ -201,7 +197,6 @@ func TestHandleDelete_MissingID(t *testing.T) {
 	defer db.Close()
 
 	req := httptest.NewRequest(http.MethodDelete, "/documents/", nil)
-	// Do NOT set path value to test missing parameter case
 	rec := httptest.NewRecorder()
 
 	handler.HandleDelete(db)(rec, req)
@@ -215,7 +210,6 @@ func TestHandleUpload_MarkdownFile(t *testing.T) {
 	db := setupTestDB(t)
 	defer db.Close()
 
-	// Create multipart form payload
 	body := &bytes.Buffer{}
 	writer := multipart.NewWriter(body)
 	fileWriter, err := writer.CreateFormFile("doc_file", "sample.md")
@@ -238,109 +232,17 @@ func TestHandleUpload_MarkdownFile(t *testing.T) {
 		t.Errorf("Expected status 200 OK, got %d. Body: %s", rec.Code, rec.Body.String())
 	}
 
-	// Verify database received converted HTML entry
 	var title, content string
 	err = db.QueryRow("SELECT title, content FROM document LIMIT 1").Scan(&title, &content)
 	if err != nil {
 		t.Fatalf("Document was not inserted into database: %v", err)
 	}
-	"net/http"
-	"net/http/httptest"
-	"testing"
-)
-
-func TestHandleLoginPage(t *testing.T) {
-	req := httptest.NewRequest(http.MethodGet, "/login", nil)
-	rec := httptest.NewRecorder()
-
-	handler.HandleLogin(rec, req)
-
-	if rec.Code != http.StatusOK {
-		t.Errorf("Expected status 200, got %d", rec.Code)
-	}
-}
-
-func TestHandleDeskPage(t *testing.T) {
-	req := httptest.NewRequest(http.MethodGet, "/", nil)
-	rec := httptest.NewRecorder()
-
-	handler.HandleDesk(rec, req)
-
-	if rec.Code != http.StatusOK {
-		t.Errorf("Expected status 200, got %d", rec.Code)
-	}
-}
-
-func TestHandleDictionaryPage(t *testing.T) {
-	req := httptest.NewRequest(http.MethodGet, "/dictionary", nil)
-	rec := httptest.NewRecorder()
-
-	handler.HandleDictionary(rec, req)
-
-	if rec.Code != http.StatusOK {
-		t.Errorf("Expected status 200, got %d", rec.Code)
-	}
-}
-
-func TestHandleCommunityPage(t *testing.T) {
-	req := httptest.NewRequest(http.MethodGet, "/community", nil)
-	rec := httptest.NewRecorder()
-
-	handler.HandleCommunity(rec, req)
-
-	if rec.Code != http.StatusOK {
-		t.Errorf("Expected status 200, got %d", rec.Code)
-	}
-}
-
-func TestHandleTutorialPage(t *testing.T) {
-	req := httptest.NewRequest(http.MethodGet, "/tutorial", nil)
-	rec := httptest.NewRecorder()
-
-	handler.HandleTutorial(rec, req)
-
-	if rec.Code != http.StatusOK {
-		t.Errorf("Expected status 200, got %d", rec.Code)
-	}
-}
-
-func TestHandleAdminPage(t *testing.T) {
-	req := httptest.NewRequest(http.MethodGet, "/admin", nil)
-	rec := httptest.NewRecorder()
-
-	handler.HandleAdmin(rec, req)
-
-	if rec.Code != http.StatusOK {
-		t.Errorf("Expected status 200, got %d", rec.Code)
-	}
-}
-
-func TestHandleHelpPage(t *testing.T) {
-	req := httptest.NewRequest(http.MethodGet, "/help", nil)
-	rec := httptest.NewRecorder()
-
-	handler.HandleHelp(rec, req)
-
-	if rec.Code != http.StatusOK {
-		t.Errorf("Expected status 200, got %d", rec.Code)
-	}
-}
-
-func TestHandleSettingsPage(t *testing.T) {
-	req := httptest.NewRequest(http.MethodGet, "/settings", nil)
-	rec := httptest.NewRecorder()
 
 	if title != "sample.md" {
 		t.Errorf("Expected title 'sample.md', got '%s'", title)
 	}
-	handler.HandleSettings(rec, req)
 
-	// Goldmark converts `# Test Header` to `<h1>Test Header</h1>`
 	if !strings.Contains(content, "<h1>Test Header</h1>") {
 		t.Errorf("Expected converted HTML content, got '%s'", content)
-	}
-}
-	if rec.Code != http.StatusOK {
-		t.Errorf("Expected status 200, got %d", rec.Code)
 	}
 }
