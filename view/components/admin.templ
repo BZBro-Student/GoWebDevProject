@@ -96,11 +96,11 @@ templ ArticleResult(doc *Document) {
         </div>
         <div id="article-result-content" class="flex-1 w-full h-full overflow-hidden">
             if doc != nil {
-<iframe
-    srcdoc={ templ.Raw(doc.Content) }
-    class="w-full h-full border-0 bg-white rounded"
-    sandbox="allow-same-origin"
-></iframe>
+                <iframe
+                    srcdoc={ doc.Content }
+                    class="w-full h-full border-0 bg-white rounded"
+                    sandbox="allow-same-origin"
+                ></iframe>
             } else {
                 <span class="text-brand-accent/60 italic">No document selected or found.</span>
             }
