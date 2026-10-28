@@ -1,39 +1,37 @@
 package components
 
 type Document struct {
-    ID      string
-    Title   string
-    Content string
+	ID      string
+	Title   string
+	Content string
 }
 
 templ Desk(doc *Document, translatedContent string) {
-    <div class="flex gap-4 w-full h-[calc(100vh-60px)] box-border p-4">
-        <!-- Source English Pane -->
-        <div id="pane-source" class="flex-1 h-full min-w-[200px] bg-brand-dark border border-[#444444] rounded-md p-2 overflow-hidden flex flex-col">
-            if doc != nil && doc.Content != "" {
-                <iframe
-                    srcdoc={ doc.Content }
-                    class="w-full h-full border-0 bg-white rounded"
-                    sandbox="allow-same-origin"
-                ></iframe>
-            } else {
-                <span class="text-brand-light/40 italic p-4 text-[15px]">Select a document from search to load English text.</span>
-            }
-        </div>
-
-        <!-- Conlang Translated Pane -->
-        <div id="pane-translated" class="flex-1 h-full min-w-[200px] bg-brand-dark border border-[#444444] rounded-md p-2 overflow-hidden flex flex-col">
-            if translatedContent != "" {
-                <iframe
-                    srcdoc={ translatedContent }
-                    class="w-full h-full border-0 bg-white rounded"
-                    sandbox="allow-same-origin"
-                ></iframe>
-            } else {
-                <span class="text-brand-light/40 italic p-4 text-[15px]">Translated text will automatically render here.</span>
-            }
-        </div>
-
-        @SideBar([]templ.Component{DocumentSearch(), TranslationAdder(), Chat()})
-    </div>
+	<div class="flex gap-4 w-full h-[calc(100vh-60px)] box-border p-4">
+		<!-- Source English Pane -->
+		<div id="pane-source" class="flex-1 h-full min-w-[200px] bg-brand-dark border border-[#444444] rounded-md p-2 overflow-hidden flex flex-col">
+			if doc != nil && doc.Content != "" {
+				<iframe
+					srcdoc={ templ.Raw(doc.Content) }
+					class="w-full h-full border-0 bg-white rounded"
+					sandbox="allow-same-origin"
+				></iframe>
+			} else {
+				<span class="text-brand-light/40 italic p-4 text-[15px]">Select a document from search to load English text.</span>
+			}
+		</div>
+		<!-- Conlang Translated Pane -->
+		<div id="pane-translated" class="flex-1 h-full min-w-[200px] bg-brand-dark border border-[#444444] rounded-md p-2 overflow-hidden flex flex-col">
+			if translatedContent != "" {
+				<iframe
+					srcdoc={ templ.Raw(translatedContent) }
+					class="w-full h-full border-0 bg-white rounded"
+					sandbox="allow-same-origin"
+				></iframe>
+			} else {
+				<span class="text-brand-light/40 italic p-4 text-[15px]">Translated text will automatically render here.</span>
+			}
+		</div>
+		@SideBar([]templ.Component{DocumentSearch(), TranslationAdder(), Chat()})
+	</div>
 }
