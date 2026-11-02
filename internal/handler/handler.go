@@ -9,14 +9,17 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"html"
 	"io"
 	"log"
 	"net/http"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
 	"github.com/a-h/templ"
+	"github.com/alexedwards/scs/v2"
 	"github.com/yuin/goldmark"
 )
 
@@ -136,16 +139,20 @@ func HandleUpload(db *sql.DB) http.HandlerFunc {
 				http.Error(w, "Failed to convert Markdown", http.StatusInternalServerError)
 				return
 			}
-			htmlOutput = buffer.Bytes()
+			// Unescape converted markdown HTML to ensure raw tags
+			htmlOutput = []byte(html.UnescapeString(buffer.String()))
 
 		case ".html", ".htm":
-			htmlOutput, err = io.ReadAll(file)
+			rawBytes, err := io.ReadAll(file)
 			if err != nil {
 				http.Error(w, "Failed to read file", http.StatusInternalServerError)
 				return
 			}
+			// Convert entity representations (&lt;, &gt;) back into raw HTML tags (<, >)
+			htmlOutput = []byte(html.UnescapeString(string(rawBytes)))
+
 		default:
-			http.Error(w, "Failed to read file", http.StatusInternalServerError)
+			http.Error(w, "Unsupported file extension", http.StatusBadRequest)
 			return
 		}
 
@@ -153,21 +160,25 @@ func HandleUpload(db *sql.DB) http.HandlerFunc {
 		now := time.Now().UTC().Format(time.RFC3339)
 
 		insertDocQuery := `
-			INSERT INTO document (doc_id, title, content, timestamp) 
-			VALUES (?, ?, ?, ?)
-		`
+            INSERT INTO document (doc_id, title, content, timestamp) 
+            VALUES (?, ?, ?, ?)
+        `
 		_, err = db.Exec(insertDocQuery, docID, header.Filename, string(htmlOutput), now)
 		if err != nil {
+			log.Printf("Failed to save document to database: %v", err)
 			http.Error(w, "Failed to save document to database", http.StatusInternalServerError)
 			return
 		}
+
+		// Extract words from the raw HTML content
 		words, err := translation.ExtractWords(bytes.NewReader(htmlOutput))
 		if err != nil {
+			log.Printf("Failed to extract words: %v", err)
 			http.Error(w, "Failed to extract words", http.StatusInternalServerError)
 			return
 		}
 
-		// Pass the scoped db parameter
+		// Update database dictionary entries with extracted corpus
 		translation.AddtoDB(words, db)
 
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
@@ -276,8 +287,78 @@ func HandleSearchDocuments(db *sql.DB) http.HandlerFunc {
 	}
 }
 
+func HandleSearchUserDictionary(db *sql.DB, sm *scs.SessionManager) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		userID := getUserID(r, sm)
+
+		query := strings.TrimSpace(r.URL.Query().Get("q"))
+		pageStr := r.URL.Query().Get("page")
+		page, err := strconv.Atoi(pageStr)
+		if err != nil || page < 1 {
+			page = 1
+		}
+
+		limit := 10
+		offset := (page - 1) * limit
+		searchPattern := "%" + query + "%"
+
+		// Count total matching entries for this string user ID
+		countQuery := `
+            SELECT COUNT(*) 
+            FROM user_dictionary 
+            WHERE id = ? AND (foreign_word LIKE ? OR user_definition LIKE ?)
+        `
+		var totalCount int
+		err = db.QueryRow(countQuery, userID, searchPattern, searchPattern).Scan(&totalCount)
+		if err != nil {
+			log.Printf("Error counting user dictionary entries: %v", err)
+			totalCount = 0
+		}
+
+		// Retrieve page items
+		selectQuery := `
+            SELECT id, foreign_word, user_definition, update_time 
+            FROM user_dictionary 
+            WHERE id = ? AND (foreign_word LIKE ? OR user_definition LIKE ?)
+            ORDER BY update_time DESC 
+            LIMIT ? OFFSET ?
+        `
+		rows, err := db.Query(selectQuery, userID, searchPattern, searchPattern, limit, offset)
+		var entries []components.UserDictEntry
+
+		if err == nil {
+			defer rows.Close()
+			for rows.Next() {
+				var item components.UserDictEntry
+				var updateTime sql.NullString
+				if err := rows.Scan(&item.ID, &item.ForeignWord, &item.UserDefinition, &updateTime); err == nil {
+					if updateTime.Valid {
+						item.UpdateTime = updateTime.String
+					}
+					entries = append(entries, item)
+				}
+			}
+		}
+
+		totalPages := (totalCount + limit - 1) / limit
+		if totalPages < 1 {
+			totalPages = 1
+		}
+
+		props := components.DictionaryResultsProps{
+			Entries:     entries,
+			Query:       query,
+			CurrentPage: page,
+			TotalPages:  totalPages,
+			TotalCount:  totalCount,
+		}
+
+		components.DictionaryResults(props).Render(r.Context(), w)
+	}
+}
+
 // HandleLoadDocumentPanes fetches English HTML, translates it, and populates both Desk panes
-func HandleLoadDocumentPanes(db *sql.DB) http.HandlerFunc {
+func HandleLoadDocumentPanes(db *sql.DB, sm *scs.SessionManager) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		docID := r.PathValue("id")
 		if docID == "" {
@@ -302,17 +383,177 @@ func HandleLoadDocumentPanes(db *sql.DB) http.HandlerFunc {
 			return
 		}
 
-		dict, err := translation.LoadDictionary(db)
+		// 1. Left Pane: Load server dictionary & translate to full Conlang
+		serverDict, err := translation.LoadDictionary(db)
 		if err != nil {
-			log.Printf("Error loading dictionary: %v", err)
+			log.Printf("Error loading server dictionary: %v", err)
 		}
 
-		translatedHTML, err := translation.TranslateHTML(doc.Content, dict)
+		leftPaneHTML, err := translation.TranslateHTML(doc.Content, serverDict)
 		if err != nil {
-			log.Printf("Error translating HTML: %v", err)
-			translatedHTML = doc.Content
+			log.Printf("Error translating Conlang HTML: %v", err)
+			leftPaneHTML = doc.Content
 		}
 
-		components.DocumentPanesResponse(doc.Content, translatedHTML).Render(r.Context(), w)
+		// 2. Right Pane: Load user dictionary using string userID
+		userID := getUserID(r, sm)
+		userDict, err := translation.LoadUserDictionary(db, userID)
+		if err != nil {
+			log.Printf("Error loading user dictionary for user %s: %v", userID, err)
+		}
+
+		rightPaneHTML, err := translation.TranslateUserHTML(doc.Content, userDict)
+		if err != nil {
+			log.Printf("Error translating user progress HTML: %v", err)
+			rightPaneHTML = doc.Content
+		}
+
+		components.DocumentPanesResponse(doc.ID, leftPaneHTML, rightPaneHTML).Render(r.Context(), w)
 	}
+}
+
+// HandleAddUserDictionary inserts or updates a word definition in user_dictionary
+func HandleAddUserDictionary(db *sql.DB, sm *scs.SessionManager) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if err := r.ParseForm(); err != nil {
+			http.Error(w, "Invalid form data", http.StatusBadRequest)
+			return
+		}
+
+		foreignInput := strings.TrimSpace(r.FormValue("foreign_word"))
+		userDefinition := strings.TrimSpace(r.FormValue("user_definition"))
+		userID := getUserID(r, sm)
+
+		if userID == "" {
+			log.Printf("[ERROR] Session user_id is missing or empty")
+			w.Header().Set("Content-Type", "text/html; charset=utf-8")
+			w.Write([]byte(`<div class="text-red-400">❌ Session expired. Please log in again.</div>`))
+			return
+		}
+
+		if foreignInput == "" || userDefinition == "" {
+			w.Header().Set("Content-Type", "text/html; charset=utf-8")
+			w.Write([]byte(`<div class="text-red-400">⚠️ Please provide both word and definition.</div>`))
+			return
+		}
+
+		// 1. Verify user exists in 'user' table using string ID
+		var dbUserID string
+		err := db.QueryRow("SELECT id FROM user WHERE id = ?", userID).Scan(&dbUserID)
+		if err != nil {
+			log.Printf("[ERROR] User ID %q not found in user table: %v", userID, err)
+			w.Header().Set("Content-Type", "text/html; charset=utf-8")
+			w.Write([]byte(`<div class="text-red-400">❌ User record not found. Please log in again.</div>`))
+			return
+		}
+
+		// 2. Verify foreign_word exists in server_dictionary to fulfill FK constraint
+		var exactForeignWord string
+		err = db.QueryRow("SELECT foreign_word FROM server_dictionary WHERE LOWER(foreign_word) = LOWER(?) LIMIT 1", foreignInput).Scan(&exactForeignWord)
+		if errors.Is(err, sql.ErrNoRows) {
+			w.Header().Set("Content-Type", "text/html; charset=utf-8")
+			w.Write([]byte(fmt.Sprintf(`<div class="text-yellow-400">⚠️ %q does not exist in server dictionary.</div>`, html.EscapeString(foreignInput))))
+			return
+		} else if err != nil {
+			log.Printf("[ERROR] Server dictionary query failed: %v", err)
+			w.Header().Set("Content-Type", "text/html; charset=utf-8")
+			w.Write([]byte(`<div class="text-red-400">❌ Database error checking server dictionary.</div>`))
+			return
+		}
+
+		// 3. Insert or update entry in user_dictionary
+		now := time.Now().UTC().Format(time.RFC3339)
+		query := `
+            INSERT INTO user_dictionary (id, foreign_word, user_definition, update_time)
+            VALUES (?, ?, ?, ?)
+            ON CONFLICT(id, foreign_word) DO UPDATE SET
+                user_definition = excluded.user_definition,
+                update_time = excluded.update_time
+        `
+		_, err = db.Exec(query, dbUserID, exactForeignWord, userDefinition, now)
+		if err != nil {
+			log.Printf("[ERROR] FK Insert into user_dictionary failed (userID=%s, word=%q): %v", dbUserID, exactForeignWord, err)
+			w.Header().Set("Content-Type", "text/html; charset=utf-8")
+			w.Write([]byte(fmt.Sprintf(`<div class="text-red-400">❌ Error saving entry %q</div>`, html.EscapeString(exactForeignWord))))
+			return
+		}
+
+		w.Header().Set("HX-Trigger", "refreshDictionary, reloadDocument")
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		w.Write([]byte(fmt.Sprintf(
+			`<div class="text-green-400">✓ Added: <span class="font-bold text-white">%s</span> → %s</div>`,
+			html.EscapeString(exactForeignWord),
+			html.EscapeString(userDefinition),
+		)))
+	}
+}
+
+// HandleRemoveUserDictionary deletes a word definition from user_dictionary
+func HandleRemoveUserDictionary(db *sql.DB, sm *scs.SessionManager) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if err := r.ParseForm(); err != nil {
+			http.Error(w, "Invalid form data", http.StatusBadRequest)
+			return
+		}
+
+		foreignWord := strings.TrimSpace(r.FormValue("foreign_word"))
+		userID := getUserID(r, sm)
+
+		if foreignWord == "" {
+			w.Header().Set("Content-Type", "text/html; charset=utf-8")
+			w.Write([]byte(`<div class="text-red-400">⚠️ Please enter a foreign word to remove.</div>`))
+			return
+		}
+
+		query := `DELETE FROM user_dictionary WHERE id = ? AND LOWER(foreign_word) = LOWER(?)`
+		res, err := db.Exec(query, userID, foreignWord)
+		if err != nil {
+			log.Printf("Failed to remove user dictionary entry: %v", err)
+			w.Header().Set("Content-Type", "text/html; charset=utf-8")
+			w.Write([]byte(fmt.Sprintf(`<div class="text-red-400">❌ Error removing %q</div>`, html.EscapeString(foreignWord))))
+			return
+		}
+
+		rowsAffected, _ := res.RowsAffected()
+		w.Header().Set("HX-Trigger", "refreshDictionary, reloadDocument")
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+
+		if rowsAffected == 0 {
+			w.Write([]byte(fmt.Sprintf(`<div class="text-yellow-400">⚠️ %q not found in dictionary.</div>`, html.EscapeString(foreignWord))))
+		} else {
+			w.Write([]byte(fmt.Sprintf(`<div class="text-red-400">✓ Removed: <span class="font-bold text-white">%s</span></div>`, html.EscapeString(foreignWord))))
+		}
+	}
+}
+
+func getUserID(r *http.Request, sm *scs.SessionManager) string {
+	keys := []string{"user_id", "userID", "id", "github_id"}
+
+	for _, k := range keys {
+		val := sm.Get(r.Context(), k)
+		if val == nil {
+			continue
+		}
+
+		switch v := val.(type) {
+		case string:
+			if v != "" {
+				return v
+			}
+		case int64:
+			if v != 0 {
+				return fmt.Sprintf("%d", v)
+			}
+		case int:
+			if v != 0 {
+				return fmt.Sprintf("%d", v)
+			}
+		case float64:
+			if v != 0 {
+				return fmt.Sprintf("%.0f", v)
+			}
+		}
+	}
+
+	return ""
 }

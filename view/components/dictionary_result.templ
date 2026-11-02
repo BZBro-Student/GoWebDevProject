@@ -1,0 +1,83 @@
+package components
+
+import "fmt"
+
+type UserDictEntry struct {
+    ID             int64
+    ForeignWord    string
+    UserDefinition string
+    UpdateTime     string
+}
+
+type DictionaryResultsProps struct {
+    Entries     []UserDictEntry
+    Query       string
+    CurrentPage int
+    TotalPages  int
+    TotalCount  int
+}
+
+templ DictionaryResults(props DictionaryResultsProps) {
+    if len(props.Entries) == 0 {
+        <div class="flex flex-col items-center justify-center h-full text-brand-light/60">
+            <p class="text-base">No dictionary entries found.</p>
+        </div>
+    } else {
+        <div class="flex flex-col justify-between h-full">
+            <!-- 10 Item Results List -->
+            <div class="flex flex-col gap-3 overflow-y-auto pr-2 flex-1">
+                for _, entry := range props.Entries {
+                    <div class="p-4 bg-brand-surface/40 border border-brand-surface rounded-md flex justify-between items-center hover:border-brand-accent transition-colors">
+                        <div>
+                            <h3 class="font-bold text-brand-accent text-lg">{ entry.ForeignWord }</h3>
+                            <p class="text-sm text-gray-300 mt-1">{ entry.UserDefinition }</p>
+                        </div>
+                        if entry.UpdateTime != "" {
+                            <span class="text-xs text-gray-500">{ entry.UpdateTime }</span>
+                        }
+                    </div>
+                }
+            </div>
+
+            <!-- Pagination Controls -->
+            if props.TotalPages > 1 {
+                <div class="flex items-center justify-between pt-4 mt-2 border-t border-brand-surface text-sm">
+                    <span class="text-gray-400 text-xs">
+                        Page { fmt.Sprint(props.CurrentPage) } of { fmt.Sprint(props.TotalPages) } ({ fmt.Sprint(props.TotalCount) } items)
+                    </span>
+                    <div class="flex gap-2">
+                        if props.CurrentPage > 1 {
+                            <button
+                                hx-get={ fmt.Sprintf("/api/dictionary/search?q=%s&page=%d", props.Query, props.CurrentPage-1) }
+                                hx-target="#dictionary-results"
+                                hx-swap="innerHTML"
+                                class="px-3 py-1 bg-brand-surface hover:bg-brand-accent text-white rounded text-xs transition-colors cursor-pointer"
+                            >
+                                Previous
+                            </button>
+                        } else {
+                            <button disabled class="px-3 py-1 bg-brand-surface/40 text-gray-600 rounded text-xs cursor-not-allowed">
+                                Previous
+                            </button>
+                        }
+
+                        if props.CurrentPage < props.TotalPages {
+                            <button
+                                hx-get={ fmt.Sprintf("/api/dictionary/search?q=%s&page=%d", props.Query, props.CurrentPage+1) }
+                                hx-target="#dictionary-results"
+                                hx-swap="innerHTML"
+                                class="px-3 py-1 bg-brand-surface hover:bg-brand-accent text-white rounded text-xs transition-colors cursor-pointer"
+                            >
+                                Next
+                            </button>
+                        } else {
+                            <button disabled class="px-3 py-1 bg-brand-surface/40 text-gray-600 rounded text-xs cursor-not-allowed">
+                                Next
+                            </button>
+                        }
+                    </div>
+                </div>
+            }
+        </div>
+    }
+}

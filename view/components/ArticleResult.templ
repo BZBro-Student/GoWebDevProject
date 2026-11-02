@@ -1,0 +1,49 @@
+package components
+
+import "fmt"
+
+templ ArticleResult(doc *Document) {
+    <div id="article-result-container" class="h-64 bg-brand-dark border-2 border-blue-500 rounded-md p-3 flex flex-col relative shrink-0">
+        <div class="flex justify-between items-center mb-3 shrink-0">
+            <div class="bg-brand-surface border border-brand-accent px-3 py-1 rounded-md text-xs text-brand-light w-3/4 truncate">
+                if doc != nil && doc.Title != "" {
+                    { doc.Title }
+                } else {
+                    Article Result
+                }
+            </div>
+            if doc != nil {
+                <button
+                    type="button"
+                    hx-delete={ fmt.Sprintf("/documents/%s", doc.ID) }
+                    hx-target="#article-result-container"
+                    hx-swap="outerHTML"
+                    hx-confirm="Are you sure you want to delete this document?"
+                    class="bg-red-950/60 hover:bg-red-900 border border-red-700 text-red-200 px-3 py-1 rounded-md text-xs transition-colors cursor-pointer"
+                >
+                    Delete
+                </button>
+            } else {
+                <button
+                    type="button"
+                    disabled
+                    class="bg-red-950/30 border border-red-900/40 text-red-400/40 px-3 py-1 rounded-md text-xs cursor-not-allowed"
+                >
+                    Delete
+                </button>
+            }
+        </div>
+        <div id="article-result-content" class="flex-1 min-h-0 w-full overflow-hidden rounded bg-white">
+            if doc != nil && doc.Content != "" {
+                <iframe
+                    src={ SafeDataURI(doc.Content) }
+                    class="w-full h-full border-0 block"
+                ></iframe>
+            } else {
+                <div class="flex items-center justify-center h-full bg-brand-dark">
+                    <span class="text-brand-accent/60 italic">No document selected or found.</span>
+                </div>
+            }
+        </div>
+    </div>
+}

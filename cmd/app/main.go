@@ -1,13 +1,12 @@
 package main
 
 import (
-	"AGoTTHT/internal/db"
-	"fmt"
 	"log"
 	"net/http"
 	"os"
 	"time"
 
+	"AGoTTHT/internal/db"
 	"AGoTTHT/internal/handler"
 
 	"github.com/alexedwards/scs/sqlite3store"
@@ -16,19 +15,21 @@ import (
 )
 
 func main() {
-	//dev env
+	// dev env
 	envErr := godotenv.Load(".env")
 	if envErr != nil {
 		log.Println("Note: No .env file found, relying on system environment variables")
 	}
-	//db
+
+	// db
 	dbPath := "data/app.db"
 	database, err := db.InitDB(dbPath)
 	if err != nil {
 		log.Fatalf("DB failed to init: %v", err)
 	}
 	defer database.Close()
-	//session management
+
+	// session management
 	sessionManager := scs.New()
 	sessionManager.Lifetime = 24 * time.Hour
 	sessionManager.Store = sqlite3store.New(database)
@@ -49,17 +50,19 @@ func main() {
 		)
 	}
 
-	//routes
+	// routes
 	mux := http.NewServeMux()
 	fs := http.FileServer(http.Dir("static"))
 	mux.Handle("/static/", http.StripPrefix("/static/", fs))
 	mux.HandleFunc("/api/health", handler.HandleHealth)
-	//login
+
+	// login
 	mux.HandleFunc("/login", handler.HandleLogin)
 	mux.HandleFunc("/auth/github", handler.HandleGitHubLogin(sessionManager))
 	mux.HandleFunc("/auth/github/callback", handler.HandleGitHubCallback(database, sessionManager))
 	mux.HandleFunc("/logout", handler.HandleLogout(sessionManager))
-	//pages
+
+	// pages
 	mux.Handle("/{$}", requireAuth(handler.HandleDesk))
 	mux.Handle("/dictionary", requireAuth(handler.HandleDictionary))
 	mux.Handle("/community", requireAuth(handler.HandleCommunity))
@@ -68,14 +71,21 @@ func main() {
 	mux.Handle("/upload", requireAdmin(handler.HandleUpload(database)))
 	mux.Handle("/help", requireAuth(handler.HandleHelp))
 	mux.Handle("/settings", requireAuth(handler.HandleSettings))
-	//doc logic
+
+	// doc logic
 	mux.Handle("GET /search", requireAuth(handler.HandleSearch(database)))
 	mux.Handle("DELETE /documents/{id}", requireAdmin(handler.HandleDelete(database)))
 	mux.Handle("GET /documents/search", requireAuth(handler.HandleSearchDocuments(database)))
-	mux.Handle("GET /documents/{id}/load", requireAuth(handler.HandleLoadDocumentPanes(database)))
+	mux.Handle("GET /documents/{id}/load", requireAuth(handler.HandleLoadDocumentPanes(database, sessionManager)))
+
+	// dictionary search logic
+	mux.Handle("POST /api/dictionary/add", requireAuth(handler.HandleAddUserDictionary(database, sessionManager)))
+	mux.Handle("POST /api/dictionary/remove", requireAuth(handler.HandleRemoveUserDictionary(database, sessionManager)))
+	mux.Handle("GET /api/dictionary/search", requireAuth(handler.HandleSearchUserDictionary(database, sessionManager)))
+
 	sessionHandler := sessionManager.LoadAndSave(mux)
-	//server
-	fmt.Println("Server running on http://localhost:8080")
+
+	// server
 	port := os.Getenv("PORT")
 	if port == "" {
 		port = "8080"
