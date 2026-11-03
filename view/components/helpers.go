@@ -75,12 +75,17 @@ func WrapDocument(content string) string {
 
 // SafeDataURI generates a base64 Data URI cast to templ.SafeURL to bypass Templ's URL sanitizer
 func SafeDataURI(content string) templ.SafeURL {
-	wrapped := WrapDocument(content)
-	if wrapped == "" {
-		return templ.SafeURL("about:blank")
+	if content == "" {
+		return templ.SafeURL("")
 	}
-	encoded := base64.StdEncoding.EncodeToString([]byte(wrapped))
-	return templ.SafeURL(fmt.Sprintf("data:text/html;charset=utf-8;base64,%s", encoded))
+
+	// If already a Data URI, return it directly without re-encoding
+	if strings.HasPrefix(content, "data:text/html;base64,") {
+		return templ.SafeURL(content)
+	}
+
+	encoded := base64.StdEncoding.EncodeToString([]byte(content))
+	return templ.SafeURL("data:text/html;base64," + encoded)
 }
 
 func RawHTML(content string) string {
