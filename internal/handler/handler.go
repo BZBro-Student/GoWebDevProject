@@ -7,6 +7,7 @@ import (
 	"bytes"
 	"crypto/rand"
 	"database/sql"
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"html"
@@ -38,7 +39,6 @@ func HandleLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Render your login component or page
 	renderHelper(w, r, components.Login())
 }
 
@@ -209,13 +209,12 @@ func HandleSearch(db *sql.DB) http.HandlerFunc {
 			return
 		}
 
-		// Search by exact ID, or matching title/content
 		queryStr := `
-		SELECT doc_id, title, content 
-		FROM document 
-		WHERE doc_id = ? OR title LIKE ? OR content LIKE ? 
-		LIMIT 1
-	`
+        SELECT doc_id, title, content 
+        FROM document 
+        WHERE doc_id = ? OR title LIKE ? OR content LIKE ? 
+        LIMIT 1
+    `
 		searchPattern := "%" + query + "%"
 
 		var doc components.Document
@@ -223,17 +222,14 @@ func HandleSearch(db *sql.DB) http.HandlerFunc {
 
 		if err != nil {
 			if errors.Is(err, sql.ErrNoRows) {
-				// Document not found
 				components.ArticleResult(nil).Render(r.Context(), w)
 				return
 			}
-			// Log error and return empty state
 			log.Printf("Search database error: %v", err)
 			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 			return
 		}
 
-		// Render the found document
 		components.ArticleResult(&doc).Render(r.Context(), w)
 	}
 }
@@ -253,12 +249,10 @@ func HandleDelete(db *sql.DB) http.HandlerFunc {
 			return
 		}
 
-		// Return empty state to clear out the result box in HTMX
 		components.ArticleResult(nil).Render(r.Context(), w)
 	}
 }
 
-// HandleSearchDocuments searches for matching documents and renders SearchResultsList for the sidebar
 func HandleSearchDocuments(db *sql.DB) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		query := strings.TrimSpace(r.URL.Query().Get("q"))
@@ -268,11 +262,11 @@ func HandleSearchDocuments(db *sql.DB) http.HandlerFunc {
 		}
 
 		queryStr := `
-			SELECT doc_id, title, SUBSTR(content, 1, 80) AS match 
-			FROM document 
-			WHERE title LIKE ? OR content LIKE ? 
-			LIMIT 10
-		`
+            SELECT doc_id, title, SUBSTR(content, 1, 80) AS match 
+            FROM document 
+            WHERE title LIKE ? OR content LIKE ? 
+            LIMIT 10
+        `
 		searchPattern := "%" + query + "%"
 
 		rows, err := db.Query(queryStr, searchPattern, searchPattern)
@@ -310,7 +304,6 @@ func HandleSearchUserDictionary(db *sql.DB, sm *scs.SessionManager) http.Handler
 		offset := (page - 1) * limit
 		searchPattern := "%" + query + "%"
 
-		// Count total matching entries for this string user ID
 		countQuery := `
             SELECT COUNT(*) 
             FROM user_dictionary 
@@ -323,7 +316,6 @@ func HandleSearchUserDictionary(db *sql.DB, sm *scs.SessionManager) http.Handler
 			totalCount = 0
 		}
 
-		// Retrieve page items
 		selectQuery := `
             SELECT id, foreign_word, user_definition, update_time 
             FROM user_dictionary 
@@ -413,11 +405,14 @@ func HandleLoadDocumentPanes(db *sql.DB, sm *scs.SessionManager) http.HandlerFun
 			rightPaneHTML = doc.Content
 		}
 
-		components.DocumentPanesResponse(doc.ID, leftPaneHTML, rightPaneHTML).Render(r.Context(), w)
+		// 3. Base64 Encode both panes for clean iframe rendering
+		leftPaneURI := "data:text/html;base64," + base64.StdEncoding.EncodeToString([]byte(leftPaneHTML))
+		rightPaneURI := "data:text/html;base64," + base64.StdEncoding.EncodeToString([]byte(rightPaneHTML))
+
+		components.DocumentPanesResponse(doc.ID, leftPaneURI, rightPaneURI).Render(r.Context(), w)
 	}
 }
 
-// HandleAddUserDictionary inserts or updates a word definition in user_dictionary
 func HandleAddUserDictionary(db *sql.DB, sm *scs.SessionManager) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if err := r.ParseForm(); err != nil {
@@ -442,7 +437,6 @@ func HandleAddUserDictionary(db *sql.DB, sm *scs.SessionManager) http.HandlerFun
 			return
 		}
 
-		// 1. Verify user exists in 'user' table using string ID
 		var dbUserID string
 		err := db.QueryRow("SELECT id FROM user WHERE id = ?", userID).Scan(&dbUserID)
 		if err != nil {
@@ -452,7 +446,6 @@ func HandleAddUserDictionary(db *sql.DB, sm *scs.SessionManager) http.HandlerFun
 			return
 		}
 
-		// 2. Verify foreign_word exists in server_dictionary to fulfill FK constraint
 		var exactForeignWord string
 		err = db.QueryRow("SELECT foreign_word FROM server_dictionary WHERE LOWER(foreign_word) = LOWER(?) LIMIT 1", foreignInput).Scan(&exactForeignWord)
 		if errors.Is(err, sql.ErrNoRows) {
@@ -466,7 +459,6 @@ func HandleAddUserDictionary(db *sql.DB, sm *scs.SessionManager) http.HandlerFun
 			return
 		}
 
-		// 3. Insert or update entry in user_dictionary
 		now := time.Now().UTC().Format(time.RFC3339)
 		query := `
             INSERT INTO user_dictionary (id, foreign_word, user_definition, update_time)
@@ -493,7 +485,6 @@ func HandleAddUserDictionary(db *sql.DB, sm *scs.SessionManager) http.HandlerFun
 	}
 }
 
-// HandleRemoveUserDictionary deletes a word definition from user_dictionary
 func HandleRemoveUserDictionary(db *sql.DB, sm *scs.SessionManager) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if err := r.ParseForm(); err != nil {
