@@ -2,6 +2,7 @@ package translation_test
 
 import (
 	"database/sql"
+	"fmt"
 	"io"
 	"net/http"
 	"reflect"
@@ -13,21 +14,23 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 )
 
-// Helper to set up an in-memory SQLite database with JSON support
+// Helper to set up an isolated in-memory SQLite database per test
 func setupTestDB(t *testing.T) *sql.DB {
 	t.Helper()
 
-	db, err := sql.Open("sqlite3", ":memory:")
+	dsn := fmt.Sprintf("file:%s?mode=memory&cache=shared", t.Name())
+	db, err := sql.Open("sqlite3", dsn)
 	if err != nil {
 		t.Fatalf("failed to open in-memory database: %v", err)
 	}
+	db.SetMaxOpenConns(1)
 
 	schema := `
-	CREATE TABLE server_dictionary (
-		foreign_word TEXT PRIMARY KEY,
-		english_translations TEXT NOT NULL
-	);
-	`
+    CREATE TABLE IF NOT EXISTS server_dictionary (
+        foreign_word TEXT PRIMARY KEY,
+        english_translations TEXT NOT NULL
+    );
+    `
 	if _, err := db.Exec(schema); err != nil {
 		t.Fatalf("failed to create schema: %v", err)
 	}
@@ -35,7 +38,7 @@ func setupTestDB(t *testing.T) *sql.DB {
 	return db
 }
 
-// Custom round tripper to mock http.DefaultTransport for FetchSynonyms
+// Custom round tripper to mock HTTP transport for FetchSynonyms
 type roundTripFunc func(req *http.Request) (*http.Response, error)
 
 func (f roundTripFunc) RoundTrip(req *http.Request) (*http.Response, error) {
@@ -48,18 +51,18 @@ func (f roundTripFunc) RoundTrip(req *http.Request) (*http.Response, error) {
 
 func TestExtractWords(t *testing.T) {
 	htmlInput := `
-		<!DOCTYPE html>
-		<html>
-		<head>
-			<style>body { color: red; }</style>
-			<script>console.log("skip me!");</script>
-		</head>
-		<body>
-			<h1>Hello, World!</h1>
-			<p>This is a test... with punctuation!!</p>
-		</body>
-		</html>
-	`
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <style>body { color: red; }</style>
+            <script>console.log("skip me!");</script>
+        </head>
+        <body>
+            <h1>Hello, World!</h1>
+            <p>This is a test... with punctuation!!</p>
+        </body>
+        </html>
+    `
 
 	words, err := translation.ExtractWords(strings.NewReader(htmlInput))
 	if err != nil {
@@ -116,10 +119,14 @@ func TestTranslationExists(t *testing.T) {
 
 func TestFetchSynonyms(t *testing.T) {
 	origTransport := http.DefaultTransport
-	defer func() { http.DefaultTransport = origTransport }()
+	origClientTransport := http.DefaultClient.Transport
+	defer func() {
+		http.DefaultTransport = origTransport
+		http.DefaultClient.Transport = origClientTransport
+	}()
 
 	t.Run("Successful API fetch and filtering", func(t *testing.T) {
-		http.DefaultTransport = roundTripFunc(func(req *http.Request) (*http.Response, error) {
+		mock := roundTripFunc(func(req *http.Request) (*http.Response, error) {
 			jsonResp := `[{"word":"fast"},{"word":"quick"},{"word":"rapid"}]`
 			return &http.Response{
 				StatusCode: http.StatusOK,
@@ -127,7 +134,9 @@ func TestFetchSynonyms(t *testing.T) {
 			}, nil
 		})
 
-		// Query for "rapid" -> "rapid" should be filtered out from results
+		http.DefaultTransport = mock
+		http.DefaultClient.Transport = mock
+
 		synonyms, err := translation.FetchSynonyms("rapid")
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
@@ -140,12 +149,15 @@ func TestFetchSynonyms(t *testing.T) {
 	})
 
 	t.Run("API Error status", func(t *testing.T) {
-		http.DefaultTransport = roundTripFunc(func(req *http.Request) (*http.Response, error) {
+		mock := roundTripFunc(func(req *http.Request) (*http.Response, error) {
 			return &http.Response{
 				StatusCode: http.StatusInternalServerError,
 				Body:       io.NopCloser(strings.NewReader("internal error")),
 			}, nil
 		})
+
+		http.DefaultTransport = mock
+		http.DefaultClient.Transport = mock
 
 		_, err := translation.FetchSynonyms("rapid")
 		if err == nil {
@@ -204,12 +216,15 @@ func TestSearchSemanticMeaning(t *testing.T) {
 
 func TestAddtoDB(t *testing.T) {
 	origTransport := http.DefaultTransport
-	defer func() { http.DefaultTransport = origTransport }()
+	origClientTransport := http.DefaultClient.Transport
+	defer func() {
+		http.DefaultTransport = origTransport
+		http.DefaultClient.Transport = origClientTransport
+	}()
 
-	// Mock API to return synonyms based on input word
-	http.DefaultTransport = roundTripFunc(func(req *http.Request) (*http.Response, error) {
+	mock := roundTripFunc(func(req *http.Request) (*http.Response, error) {
 		var jsonResp string
-		if strings.Contains(req.URL.String(), "ml=swift") {
+		if strings.Contains(req.URL.String(), "swift") {
 			jsonResp = `[{"word":"fast"}]`
 		} else {
 			jsonResp = `[]`
@@ -219,6 +234,9 @@ func TestAddtoDB(t *testing.T) {
 			Body:       io.NopCloser(strings.NewReader(jsonResp)),
 		}, nil
 	})
+
+	http.DefaultTransport = mock
+	http.DefaultClient.Transport = mock
 
 	db := setupTestDB(t)
 	defer db.Close()
@@ -232,15 +250,28 @@ func TestAddtoDB(t *testing.T) {
 		t.Fatalf("failed to seed database: %v", err)
 	}
 
-	// Process new words: "fast" (already exists), "swift" (synonym of "fast"), "unique" (new word)
+	// Process words: "fast" (already in DB), "swift" (synonym of "fast")
 	words := []string{"fast", "swift"}
 	translation.AddtoDB(words, db)
 
-	// "swift" should be appended to "rapido"'s english_translations array via synonym match
-	var translationsJSON string
-	err = db.QueryRow("SELECT english_translations FROM server_dictionary WHERE foreign_word = ?", "rapido").Scan(&translationsJSON)
+	// 1. Verify "swift" now exists in server_dictionary
+	exists, err := translation.TranslationExists(db, "swift")
 	if err != nil {
-		t.Fatalf("failed to query updated record: %v", err)
+		t.Fatalf("failed to check existence for 'swift': %v", err)
+	}
+	if !exists {
+		t.Errorf("expected 'swift' to be mapped and exist in server_dictionary")
+	}
+
+	// 2. Query the derived entry created for 'swift'
+	var derivedForeignWord, translationsJSON string
+	err = db.QueryRow(`
+        SELECT server_dictionary.foreign_word, server_dictionary.english_translations 
+        FROM server_dictionary, json_each(server_dictionary.english_translations) 
+        WHERE LOWER(json_each.value) = 'swift'
+    `).Scan(&derivedForeignWord, &translationsJSON)
+	if err != nil {
+		t.Fatalf("failed to query entry for 'swift': %v", err)
 	}
 
 	if !strings.Contains(translationsJSON, "swift") {

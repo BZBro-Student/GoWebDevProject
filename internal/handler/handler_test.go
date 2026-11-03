@@ -1,14 +1,18 @@
 package handler_test
 
 import (
-	"AGoTTHT/internal/handler"
 	"bytes"
 	"database/sql"
+	"fmt"
 	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"AGoTTHT/internal/handler"
+
+	_ "github.com/mattn/go-sqlite3"
 )
 
 func TestHandleLoginPage(t *testing.T) {
@@ -102,21 +106,46 @@ func TestHandleSettingsPage(t *testing.T) {
 func setupTestDB(t *testing.T) *sql.DB {
 	t.Helper()
 
-	db, err := sql.Open("sqlite3", ":memory:")
+	dsn := fmt.Sprintf("file:%s?mode=memory&cache=shared", t.Name())
+	db, err := sql.Open("sqlite3", dsn)
 	if err != nil {
 		t.Fatalf("Failed to open in-memory database: %v", err)
 	}
+	db.SetMaxOpenConns(1)
 
 	schema := `
-    CREATE TABLE IF NOT EXISTS document (
-        doc_id TEXT PRIMARY KEY,
-        title TEXT NOT NULL,
-        content TEXT NOT NULL,
-        timestamp TEXT NOT NULL
-    );
-    `
+	CREATE TABLE IF NOT EXISTS user (
+		id TEXT PRIMARY KEY,
+		username TEXT NOT NULL,
+		is_admin INTEGER NOT NULL DEFAULT 0,
+		creation_time TEXT
+	);
+
+	CREATE TABLE IF NOT EXISTS server_dictionary (
+		foreign_word TEXT PRIMARY KEY,
+		english_translations TEXT NOT NULL
+	);
+
+	CREATE TABLE IF NOT EXISTS user_dictionary (
+		id TEXT NOT NULL,
+		foreign_word TEXT NOT NULL,
+		user_definition TEXT NOT NULL,
+		update_time TEXT,
+		PRIMARY KEY (id, foreign_word),
+		FOREIGN KEY (id) REFERENCES user(id),
+		FOREIGN KEY (foreign_word) REFERENCES server_dictionary(foreign_word)
+	);
+
+	CREATE TABLE IF NOT EXISTS document (
+		doc_id TEXT PRIMARY KEY,
+		title TEXT NOT NULL,
+		content TEXT NOT NULL,
+		translated_content TEXT,
+		timestamp TEXT
+	);
+	`
 	if _, err := db.Exec(schema); err != nil {
-		t.Fatalf("Failed to create document table: %v", err)
+		t.Fatalf("Failed to create database schema: %v", err)
 	}
 
 	return db

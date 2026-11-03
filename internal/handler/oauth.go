@@ -6,6 +6,7 @@ import (
 	"database/sql"
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"log"
 	"net/http"
 	"os"
@@ -97,7 +98,10 @@ func HandleGitHubCallback(database *sql.DB, sm *scs.SessionManager) http.Handler
 			return
 		}
 
-		sm.Put(r.Context(), "userID", user.ID)
+		// Store user ID explicitly as a string under both key styles
+		userIDStr := fmt.Sprintf("%v", user.ID)
+		sm.Put(r.Context(), "user_id", userIDStr)
+		sm.Put(r.Context(), "userID", userIDStr)
 		sm.Put(r.Context(), "isAdmin", user.IsAdmin)
 
 		http.Redirect(w, r, "/", http.StatusSeeOther)
