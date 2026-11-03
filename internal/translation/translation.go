@@ -396,14 +396,18 @@ func AddtoDB(words []string, db *sql.DB) {
 		}
 
 		if found {
-			updateQuery := `
-                UPDATE server_dictionary 
-                SET english_translations = json_insert(english_translations, '$[#]', ?) 
-                WHERE foreign_word = ?
+			// Generate a derived cognate based on the root foreign word (e.g. 'kasa' -> 'kasani')
+			derivedForeignWord := DeriveSynonymWord(foreignWord, input)
+
+			insertQuery := `
+                INSERT INTO server_dictionary (foreign_word, english_translations) 
+                VALUES (?, json_array(?))
+                ON CONFLICT(foreign_word) DO UPDATE SET 
+                    english_translations = json_insert(english_translations, '$[#]', ?)
             `
-			_, err = tx.Exec(updateQuery, input, foreignWord)
+			_, err = tx.Exec(insertQuery, derivedForeignWord, input, input)
 			if err != nil {
-				fmt.Printf("  [ERROR] Failed to map %q to existing foreign word %q: %v\n", input, foreignWord, err)
+				fmt.Printf("  [ERROR] Failed to insert derived synonym %q -> %q: %v\n", input, derivedForeignWord, err)
 				countSkipped++
 			} else {
 				countUpdated++

@@ -86,3 +86,9 @@ func GenerateForeignWord(englishWord string) string {
 
 	return sb.String()
 }
+
+func DeriveSynonymWord(rootForeignWord, englishWord string) string {
+	r := rand.New(rand.NewSource(hashWord(rootForeignWord + ":" + englishWord)))
+	suffix := syllables[r.Intn(len(syllables))]
+	return rootForeignWord + suffix
+}

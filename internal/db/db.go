@@ -3,6 +3,7 @@ package db
 import (
 	"database/sql"
 	"fmt"
+	"strings"
 
 	_ "github.com/mattn/go-sqlite3"
 )
@@ -35,6 +36,7 @@ CREATE TABLE IF NOT EXISTS document (
     doc_id TEXT PRIMARY KEY,
     title TEXT NOT NULL,
     content TEXT,
+    translated_content TEXT,
     timestamp TEXT NOT NULL
 );
 
@@ -94,5 +96,41 @@ func InitDB(dbPath string) (*sql.DB, error) {
 		return nil, fmt.Errorf("failed to execute schema: %w", err)
 	}
 
+	// Auto-migration: Ensure translated_content exists on older databases
+	if err := migrateDocumentTable(db); err != nil {
+		return nil, fmt.Errorf("failed to migrate document table: %w", err)
+	}
+
 	return db, nil
+}
+
+func migrateDocumentTable(db *sql.DB) error {
+	rows, err := db.Query("PRAGMA table_info(document)")
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+
+	hasTranslatedColumn := false
+	for rows.Next() {
+		var cid int
+		var name, ctype string
+		var notnull, pk int
+		var dfltValue sql.NullString
+		if err := rows.Scan(&cid, &name, &ctype, &notnull, &dfltValue, &pk); err == nil {
+			if strings.EqualFold(name, "translated_content") {
+				hasTranslatedColumn = true
+				break
+			}
+		}
+	}
+
+	if !hasTranslatedColumn {
+		_, err := db.Exec("ALTER TABLE document ADD COLUMN translated_content TEXT")
+		if err != nil {
+			return fmt.Errorf("failed to add translated_content column: %w", err)
+		}
+	}
+
+	return nil
 }

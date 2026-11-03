@@ -139,7 +139,6 @@ func HandleUpload(db *sql.DB) http.HandlerFunc {
 				http.Error(w, "Failed to convert Markdown", http.StatusInternalServerError)
 				return
 			}
-			// Unescape converted markdown HTML to ensure raw tags
 			htmlOutput = []byte(html.UnescapeString(buffer.String()))
 
 		case ".html", ".htm":
@@ -148,7 +147,6 @@ func HandleUpload(db *sql.DB) http.HandlerFunc {
 				http.Error(w, "Failed to read file", http.StatusInternalServerError)
 				return
 			}
-			// Convert entity representations (&lt;, &gt;) back into raw HTML tags (<, >)
 			htmlOutput = []byte(html.UnescapeString(string(rawBytes)))
 
 		default:
@@ -156,30 +154,40 @@ func HandleUpload(db *sql.DB) http.HandlerFunc {
 			return
 		}
 
-		docID := generateUUID()
-		now := time.Now().UTC().Format(time.RFC3339)
-
-		insertDocQuery := `
-            INSERT INTO document (doc_id, title, content, timestamp) 
-            VALUES (?, ?, ?, ?)
-        `
-		_, err = db.Exec(insertDocQuery, docID, header.Filename, string(htmlOutput), now)
-		if err != nil {
-			log.Printf("Failed to save document to database: %v", err)
-			http.Error(w, "Failed to save document to database", http.StatusInternalServerError)
-			return
-		}
-
-		// Extract words from the raw HTML content
+		// 1. Extract words & process dictionary updates FIRST
 		words, err := translation.ExtractWords(bytes.NewReader(htmlOutput))
 		if err != nil {
 			log.Printf("Failed to extract words: %v", err)
 			http.Error(w, "Failed to extract words", http.StatusInternalServerError)
 			return
 		}
-
-		// Update database dictionary entries with extracted corpus
 		translation.AddtoDB(words, db)
+
+		// 2. Load dictionary & pre-translate server Conlang pane
+		serverDict, err := translation.LoadDictionary(db)
+		if err != nil {
+			log.Printf("Error loading server dictionary: %v", err)
+		}
+		serverTranslatedHTML, err := translation.TranslateHTML(string(htmlOutput), serverDict)
+		if err != nil {
+			log.Printf("Error pre-translating HTML: %v", err)
+			serverTranslatedHTML = string(htmlOutput)
+		}
+
+		// 3. Save raw content AND pre-translated content into SQLite
+		docID := generateUUID()
+		now := time.Now().UTC().Format(time.RFC3339)
+
+		insertDocQuery := `
+            INSERT INTO document (doc_id, title, content, translated_content, timestamp) 
+            VALUES (?, ?, ?, ?, ?)
+        `
+		_, err = db.Exec(insertDocQuery, docID, header.Filename, string(htmlOutput), serverTranslatedHTML, now)
+		if err != nil {
+			log.Printf("Failed to save document to database: %v", err)
+			http.Error(w, "Failed to save document to database", http.StatusInternalServerError)
+			return
+		}
 
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		w.WriteHeader(http.StatusOK)
@@ -371,8 +379,10 @@ func HandleLoadDocumentPanes(db *sql.DB, sm *scs.SessionManager) http.HandlerFun
 		}
 
 		var doc components.Document
-		queryStr := `SELECT doc_id, title, content FROM document WHERE doc_id = ?`
-		err := db.QueryRow(queryStr, docID).Scan(&doc.ID, &doc.Title, &doc.Content)
+		var cachedServerHTML sql.NullString
+
+		queryStr := `SELECT doc_id, title, content, translated_content FROM document WHERE doc_id = ?`
+		err := db.QueryRow(queryStr, docID).Scan(&doc.ID, &doc.Title, &doc.Content, &cachedServerHTML)
 		if err != nil {
 			if errors.Is(err, sql.ErrNoRows) {
 				http.Error(w, "Document not found", http.StatusNotFound)
@@ -383,19 +393,14 @@ func HandleLoadDocumentPanes(db *sql.DB, sm *scs.SessionManager) http.HandlerFun
 			return
 		}
 
-		// 1. Left Pane: Load server dictionary & translate to full Conlang
-		serverDict, err := translation.LoadDictionary(db)
-		if err != nil {
-			log.Printf("Error loading server dictionary: %v", err)
+		// 1. Left Pane: Use cached translation from DB (Fallback to on-the-fly if empty)
+		leftPaneHTML := cachedServerHTML.String
+		if leftPaneHTML == "" {
+			serverDict, _ := translation.LoadDictionary(db)
+			leftPaneHTML, _ = translation.TranslateHTML(doc.Content, serverDict)
 		}
 
-		leftPaneHTML, err := translation.TranslateHTML(doc.Content, serverDict)
-		if err != nil {
-			log.Printf("Error translating Conlang HTML: %v", err)
-			leftPaneHTML = doc.Content
-		}
-
-		// 2. Right Pane: Load user dictionary using string userID
+		// 2. Right Pane: User specific progress translation
 		userID := getUserID(r, sm)
 		userDict, err := translation.LoadUserDictionary(db, userID)
 		if err != nil {
