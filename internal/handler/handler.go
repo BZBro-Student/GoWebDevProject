@@ -1,13 +1,9 @@
 package handler
 
 import (
-	"AGoTTHT/internal/translation"
-	"AGoTTHT/view/components"
-	"AGoTTHT/view/layout"
 	"bytes"
 	"crypto/rand"
 	"database/sql"
-	"encoding/base64"
 	"errors"
 	"fmt"
 	"html"
@@ -18,6 +14,10 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"AGoTTHT/internal/translation"
+	"AGoTTHT/view/components"
+	"AGoTTHT/view/layout"
 
 	"github.com/a-h/templ"
 	"github.com/alexedwards/scs/v2"
@@ -385,14 +385,14 @@ func HandleLoadDocumentPanes(db *sql.DB, sm *scs.SessionManager) http.HandlerFun
 			return
 		}
 
-		// 1. Left Pane: Use cached translation from DB (Fallback to on-the-fly if empty)
+		// 1. Left Pane: Conlang translation
 		leftPaneHTML := cachedServerHTML.String
 		if leftPaneHTML == "" {
 			serverDict, _ := translation.LoadDictionary(db)
 			leftPaneHTML, _ = translation.TranslateHTML(doc.Content, serverDict)
 		}
 
-		// 2. Right Pane: User specific progress translation
+		// 2. Right Pane: User dictionary progress translation
 		userID := getUserID(r, sm)
 		userDict, err := translation.LoadUserDictionary(db, userID)
 		if err != nil {
@@ -405,11 +405,7 @@ func HandleLoadDocumentPanes(db *sql.DB, sm *scs.SessionManager) http.HandlerFun
 			rightPaneHTML = doc.Content
 		}
 
-		// 3. Base64 Encode both panes for clean iframe rendering
-		leftPaneURI := "data:text/html;base64," + base64.StdEncoding.EncodeToString([]byte(leftPaneHTML))
-		rightPaneURI := "data:text/html;base64," + base64.StdEncoding.EncodeToString([]byte(rightPaneHTML))
-
-		components.DocumentPanesResponse(doc.ID, leftPaneURI, rightPaneURI).Render(r.Context(), w)
+		components.DocumentPanesResponse(doc.ID, leftPaneHTML, rightPaneHTML).Render(r.Context(), w)
 	}
 }
 
