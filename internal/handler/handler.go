@@ -7,6 +7,7 @@ import (
 	"bytes"
 	"crypto/rand"
 	"database/sql"
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"html"
@@ -406,6 +407,99 @@ func HandleLoadDocumentPanes(db *sql.DB, sm *scs.SessionManager) http.HandlerFun
 
 		// 3. Render response with raw HTML strings; SafeDataURI in Templ will handle Base64 encoding
 		components.DocumentPanesResponse(doc.ID, leftPaneHTML, rightPaneHTML).Render(r.Context(), w)
+	}
+}
+
+func HandleAddUserDictionary(db *sql.DB, sm *scs.SessionManager) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if err := r.ParseForm(); err != nil {
+			http.Error(w, "Invalid form data", http.StatusBadRequest)
+			return
+		}
+
+		foreignInput := strings.TrimSpace(r.FormValue("foreign_word"))
+		userDefinition := strings.TrimSpace(r.FormValue("user_definition"))
+		userID := getUserID(r, sm)
+
+		if userID == "" {
+			log.Printf("[ERROR] Session user_id is missing or empty")
+			w.Header().Set("Content-Type", "text/html; charset=utf-8")
+			w.Write([]byte(`<div class="text-red-400">❌ Session expired. Please log in again.</div>`))
+			return
+		}
+
+		if foreignInput == "" || userDefinition == "" {
+			w.Header().Set("Content-Type", "text/html; charset=utf-8")
+			w.Write([]byte(`<div class="text-red-400">⚠️ Please provide both word and definition.</div>`))
+			return
+		}
+
+		var dbUserID string
+		err := db.QueryRow("SELECT id FROM user WHERE id = ?", userID).Scan(&dbUserID)
+		if err != nil {
+			log.Printf("[ERROR] User ID %q not found in user table: %v", userID, err)
+			w.Header().Set("Content-Type", "text/html; charset=utf-8")
+			w.Write([]byte(`<div class="text-red-400">❌ User record not found. Please log in again.</div>`))
+			return
+		}
+
+		var exactForeignWord string
+		err = db.QueryRow("SELECT foreign_word FROM server_dictionary WHERE LOWER(foreign_word) = LOWER(?) LIMIT 1", foreignInput).Scan(&exactForeignWord)
+		if errors.Is(err, sql.ErrNoRows) {
+			w.Header().Set("Content-Type", "text/html; charset=utf-8")
+			w.Write([]byte(fmt.Sprintf(`<div class="text-yellow-400">⚠️ %q does not exist in server dictionary.</div>`, html.EscapeString(foreignInput))))
+			return
+		} else if err != nil {
+			log.Printf("[ERROR] Server dictionary query failed: %v", err)
+			w.Header().Set("Content-Type", "text/html; charset=utf-8")
+			w.Write([]byte(`<div class="text-red-400">❌ Database error checking server dictionary.</div>`))
+			return
+		}
+
+		now := time.Now().UTC().Format(time.RFC3339)
+		query := `
+            INSERT INTO user_dictionary (id, foreign_word, user_definition, update_time)
+            VALUES (?, ?, ?, ?)
+            ON CONFLICT(id, foreign_word) DO UPDATE SET
+                user_definition = excluded.user_definition,
+                update_time = excluded.update_time
+        `
+		_, err = db.Exec(query, dbUserID, exactForeignWord, userDefinition, now)
+		if err != nil {
+			log.Printf("[ERROR] FK Insert into user_dictionary failed (userID=%s, word=%q): %v", dbUserID, exactForeignWord, err)
+			w.Header().Set("Content-Type", "text/html; charset=utf-8")
+			w.Write([]byte(fmt.Sprintf(`<div class="text-red-400">❌ Error saving entry %q</div>`, html.EscapeString(exactForeignWord))))
+			return
+		}
+
+		w.Header().Set("HX-Trigger", "refreshDictionary, reloadDocument")
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		w.Write([]byte(fmt.Sprintf(
+			`<div class="text-green-400">✓ Added: <span class="font-bold text-white">%s</span> → %s</div>`,
+			html.EscapeString(exactForeignWord),
+			html.EscapeString(userDefinition),
+		)))
+	}
+}
+
+		// 2. Right Pane: User specific progress translation
+		userID := getUserID(r, sm)
+		userDict, err := translation.LoadUserDictionary(db, userID)
+		if err != nil {
+			log.Printf("Error loading user dictionary for user %s: %v", userID, err)
+		}
+
+		rightPaneHTML, err := translation.TranslateUserHTML(doc.Content, userDict)
+		if err != nil {
+			log.Printf("Error translating user progress HTML: %v", err)
+			rightPaneHTML = doc.Content
+		}
+
+		// 3. Base64 Encode both panes for clean iframe rendering
+		leftPaneURI := "data:text/html;base64," + base64.StdEncoding.EncodeToString([]byte(leftPaneHTML))
+		rightPaneURI := "data:text/html;base64," + base64.StdEncoding.EncodeToString([]byte(rightPaneHTML))
+
+		components.DocumentPanesResponse(doc.ID, leftPaneURI, rightPaneURI).Render(r.Context(), w)
 	}
 }
 
