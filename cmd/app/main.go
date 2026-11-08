@@ -65,7 +65,8 @@ func main() {
 	// pages
 	mux.Handle("/{$}", requireAuth(handler.HandleDesk))
 	mux.Handle("/dictionary", requireAuth(handler.HandleDictionary))
-	mux.Handle("/community", requireAuth(handler.HandleCommunity))
+	mux.Handle("/community", requireAuth(handler.HandleCommunity(database)))
+	mux.Handle("GET /community/forum", requireAuth(handler.HandleGetForumSection(database)))
 	mux.Handle("/tutorial", requireAuth(handler.HandleTutorial))
 	mux.Handle("/admin", requireAdmin(handler.HandleAdmin))
 	mux.Handle("/upload", requireAdmin(handler.HandleUpload(database)))
@@ -82,6 +83,19 @@ func main() {
 	mux.Handle("POST /api/dictionary/add", requireAuth(handler.HandleAddUserDictionary(database, sessionManager)))
 	mux.Handle("POST /api/dictionary/remove", requireAuth(handler.HandleRemoveUserDictionary(database, sessionManager)))
 	mux.Handle("GET /api/dictionary/search", requireAuth(handler.HandleSearchUserDictionary(database, sessionManager)))
+
+	// community logic
+	mux.Handle("GET /community/new-post", requireAuth(handler.HandleNewPostModal))
+	mux.Handle("POST /community/posts", requireAuth(handler.HandleCreatePost(database, sessionManager)))
+	mux.Handle("GET /community/threads/{id}", requireAuth(handler.HandleGetThreadDetails(database, sessionManager)))
+	mux.Handle("POST /community/threads/{id}/replies", requireAuth(handler.HandleCreateReply(database, sessionManager)))
+	mux.Handle("POST /community/threads/{id}/lock", requireAdmin(handler.HandleToggleLockThread(database, sessionManager)))
+	mux.Handle("DELETE /community/threads/{id}", requireAdmin(handler.HandleDeleteThread(database, sessionManager)))
+
+	// chat logic
+	mux.Handle("GET /api/chat/messages", requireAuth(handler.HandleGetChatMessages(database, sessionManager)))
+	mux.Handle("POST /api/chat/messages", requireAuth(handler.HandlePostChatMessage(database, sessionManager)))
+	mux.Handle("DELETE /api/chat/messages/{id}", requireAdmin(handler.HandleDeleteChatMessage(database, sessionManager)))
 
 	sessionHandler := sessionManager.LoadAndSave(mux)
 

@@ -15,6 +15,7 @@ import (
 	"strings"
 	"time"
 
+	"AGoTTHT/internal/censor"
 	"AGoTTHT/internal/translation"
 	"AGoTTHT/view/components"
 	"AGoTTHT/view/layout"
@@ -57,14 +58,6 @@ func HandleDictionary(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	renderHelper(w, r, components.Dictionary())
-}
-
-func HandleCommunity(w http.ResponseWriter, r *http.Request) {
-	if r.URL.Path != "/community" {
-		http.NotFound(w, r)
-		return
-	}
-	renderHelper(w, r, components.Community())
 }
 
 func HandleTutorial(w http.ResponseWriter, r *http.Request) {
@@ -548,4 +541,555 @@ func getUserID(r *http.Request, sm *scs.SessionManager) string {
 	}
 
 	return ""
+}
+
+// Check database directly for user's admin privilege flag
+func checkIsAdmin(db *sql.DB, r *http.Request, sm *scs.SessionManager) bool {
+	userID := getUserID(r, sm)
+	if userID == "" || db == nil {
+		return false
+	}
+
+	var isAdmin int
+	err := db.QueryRow("SELECT is_admin FROM user WHERE id = ?", userID).Scan(&isAdmin)
+	if err == nil {
+		return isAdmin == 1
+	}
+
+	// Session fallback check
+	if sm != nil {
+		if v, ok := sm.Get(r.Context(), "is_admin").(bool); ok {
+			return v
+		}
+		if v, ok := sm.Get(r.Context(), "is_admin").(int); ok {
+			return v == 1
+		}
+		if v, ok := sm.Get(r.Context(), "role").(string); ok && v == "admin" {
+			return true
+		}
+	}
+
+	return false
+}
+
+const postsPerPage = 5
+
+// HandleCommunity renders the initial full community page with both forums
+func HandleCommunity(db *sql.DB) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/community" {
+			http.NotFound(w, r)
+			return
+		}
+
+		generalProps := fetchForumProps(db, "general", "General Announcements & News", 1)
+		qnaProps := fetchForumProps(db, "qna", "Conlang Q&A & Support", 1)
+
+		renderHelper(w, r, components.Community(generalProps, qnaProps))
+	}
+}
+
+// HandleGetForumSection renders an HTMX outerHTML partial for single-forum pagination
+func HandleGetForumSection(db *sql.DB) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		category := r.URL.Query().Get("category")
+		if category == "" {
+			category = "general"
+		}
+
+		page, err := strconv.Atoi(r.URL.Query().Get("page"))
+		if err != nil || page < 1 {
+			page = 1
+		}
+
+		title := "General Announcements & News"
+		if category == "qna" {
+			title = "Conlang Q&A & Support"
+		}
+
+		props := fetchForumProps(db, category, title, page)
+		components.ForumSection(props).Render(r.Context(), w)
+	}
+}
+
+func fetchForumProps(db *sql.DB, category string, title string, page int) components.ForumProps {
+	offset := (page - 1) * postsPerPage
+
+	// Count total threads in this category
+	var totalPosts int
+	_ = db.QueryRow("SELECT COUNT(*) FROM forum WHERE category_id = ?", category).Scan(&totalPosts)
+
+	totalPages := (totalPosts + postsPerPage - 1) / postsPerPage
+	if totalPages < 1 {
+		totalPages = 1
+	}
+
+	// Fetch paginated threads matching schema
+	query := `
+        SELECT f.thread_id, f.title, COALESCE(u.username, 'Anonymous'), f.created_at,
+               (SELECT COUNT(*) FROM replies r WHERE r.thread_id = f.thread_id) AS reply_count
+        FROM forum f
+        LEFT JOIN user u ON f.author_id = u.id
+        WHERE f.category_id = ?
+        ORDER BY f.created_at DESC
+        LIMIT ? OFFSET ?
+    `
+	rows, err := db.Query(query, category, postsPerPage, offset)
+	var posts []components.ForumPost
+
+	if err == nil {
+		defer rows.Close()
+		for rows.Next() {
+			var p components.ForumPost
+			if err := rows.Scan(&p.ID, &p.Title, &p.Author, &p.CreatedAt, &p.Replies); err == nil {
+				posts = append(posts, p)
+			}
+		}
+	}
+
+	return components.ForumProps{
+		Category:    category,
+		Title:       title,
+		Posts:       posts,
+		CurrentPage: page,
+		TotalPages:  totalPages,
+	}
+}
+
+func HandleNewPostModal(w http.ResponseWriter, r *http.Request) {
+	category := r.URL.Query().Get("category")
+	if category == "" {
+		category = "general"
+	}
+
+	components.NewPostModal(category).Render(r.Context(), w)
+}
+
+// HandleCreatePost saves a new forum post with auto-censoring applied to title & content
+func HandleCreatePost(db *sql.DB, sm *scs.SessionManager) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if err := r.ParseForm(); err != nil {
+			http.Error(w, "Invalid form data", http.StatusBadRequest)
+			return
+		}
+
+		category := strings.TrimSpace(r.FormValue("category"))
+		title := strings.TrimSpace(r.FormValue("title"))
+		content := strings.TrimSpace(r.FormValue("content"))
+		userID := getUserID(r, sm)
+
+		if category == "" || title == "" {
+			http.Error(w, "Title and category are required", http.StatusBadRequest)
+			return
+		}
+
+		// 1. Sanitize title and content against bad word filter
+		title = censor.Sanitize(title)
+		content = censor.Sanitize(content)
+
+		threadID := generateUUID()
+		now := time.Now().UTC().Format(time.RFC3339)
+
+		tx, err := db.Begin()
+		if err != nil {
+			http.Error(w, "Database transaction error", http.StatusInternalServerError)
+			return
+		}
+		defer tx.Rollback()
+
+		// 2. Insert sanitized thread header into `forum`
+		queryThread := `
+            INSERT INTO forum (thread_id, category_id, author_id, title, locked, created_at)
+            VALUES (?, ?, ?, ?, 0, ?)
+        `
+		_, err = tx.Exec(queryThread, threadID, category, userID, title, now)
+		if err != nil {
+			log.Printf("Failed to insert forum thread: %v", err)
+			http.Error(w, "Database error creating thread", http.StatusInternalServerError)
+			return
+		}
+
+		// 3. Insert sanitized initial post body into `replies`
+		if content != "" {
+			replyID := generateUUID()
+			queryReply := `
+                INSERT INTO replies (reply_id, thread_id, title, author_id, text, created_at)
+                VALUES (?, ?, ?, ?, ?, ?)
+            `
+			_, err = tx.Exec(queryReply, replyID, threadID, title, userID, content, now)
+			if err != nil {
+				log.Printf("Failed to insert initial reply content: %v", err)
+				http.Error(w, "Database error creating thread content", http.StatusInternalServerError)
+				return
+			}
+		}
+
+		if err := tx.Commit(); err != nil {
+			log.Printf("Failed to commit transaction: %v", err)
+			http.Error(w, "Failed to commit transaction", http.StatusInternalServerError)
+			return
+		}
+
+		// Re-fetch updated page 1 for target category section
+		sectionTitle := "General Announcements & News"
+		if category == "qna" {
+			sectionTitle = "Conlang Q&A & Support"
+		}
+
+		props := fetchForumProps(db, category, sectionTitle, 1)
+		components.ForumSection(props).Render(r.Context(), w)
+	}
+}
+
+// HandleGetThreadDetails fetches thread metadata and reply messages for the modal
+func HandleGetThreadDetails(db *sql.DB, sm *scs.SessionManager) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		threadID := r.PathValue("id")
+		if threadID == "" {
+			http.Error(w, "Missing thread ID", http.StatusBadRequest)
+			return
+		}
+
+		props, err := fetchThreadDetails(db, threadID)
+		if err != nil {
+			if errors.Is(err, sql.ErrNoRows) {
+				http.Error(w, "Thread not found", http.StatusNotFound)
+				return
+			}
+			log.Printf("Error fetching thread details: %v", err)
+			http.Error(w, "Database error", http.StatusInternalServerError)
+			return
+		}
+
+		props.IsAdmin = checkIsAdmin(db, r, sm)
+		components.ThreadModal(props).Render(r.Context(), w)
+	}
+}
+
+// HandleToggleLockThread toggles the locked state (0 <-> 1) of a thread
+func HandleToggleLockThread(db *sql.DB, sm *scs.SessionManager) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if !checkIsAdmin(db, r, sm) {
+			http.Error(w, "Unauthorized: Admin privileges required", http.StatusForbidden)
+			return
+		}
+
+		threadID := r.PathValue("id")
+		if threadID == "" {
+			http.Error(w, "Missing thread ID", http.StatusBadRequest)
+			return
+		}
+
+		query := `UPDATE forum SET locked = CASE WHEN locked = 1 THEN 0 ELSE 1 END WHERE thread_id = ?`
+		_, err := db.Exec(query, threadID)
+		if err != nil {
+			log.Printf("Failed to toggle thread lock status: %v", err)
+			http.Error(w, "Database error", http.StatusInternalServerError)
+			return
+		}
+
+		props, err := fetchThreadDetails(db, threadID)
+		if err != nil {
+			http.Error(w, "Database error loading thread", http.StatusInternalServerError)
+			return
+		}
+
+		props.IsAdmin = true
+		components.ThreadModal(props).Render(r.Context(), w)
+	}
+}
+
+// HandleDeleteThread deletes the thread and all associated replies, then triggers a page reload
+func HandleDeleteThread(db *sql.DB, sm *scs.SessionManager) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if !checkIsAdmin(db, r, sm) {
+			http.Error(w, "Unauthorized: Admin privileges required", http.StatusForbidden)
+			return
+		}
+
+		threadID := r.PathValue("id")
+		if threadID == "" {
+			http.Error(w, "Missing thread ID", http.StatusBadRequest)
+			return
+		}
+
+		tx, err := db.Begin()
+		if err != nil {
+			http.Error(w, "Database transaction error", http.StatusInternalServerError)
+			return
+		}
+		defer tx.Rollback()
+
+		_, err = tx.Exec("DELETE FROM replies WHERE thread_id = ?", threadID)
+		if err != nil {
+			log.Printf("Failed to delete replies for thread %s: %v", threadID, err)
+			http.Error(w, "Database error deleting replies", http.StatusInternalServerError)
+			return
+		}
+
+		_, err = tx.Exec("DELETE FROM forum WHERE thread_id = ?", threadID)
+		if err != nil {
+			log.Printf("Failed to delete thread %s: %v", threadID, err)
+			http.Error(w, "Database error deleting thread", http.StatusInternalServerError)
+			return
+		}
+
+		if err := tx.Commit(); err != nil {
+			http.Error(w, "Failed to commit transaction", http.StatusInternalServerError)
+			return
+		}
+
+		w.Header().Set("HX-Refresh", "true")
+		w.WriteHeader(http.StatusOK)
+	}
+}
+
+// HandleCreateReply inserts a sanitized reply into SQLite and re-renders the ThreadModal
+func HandleCreateReply(db *sql.DB, sm *scs.SessionManager) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		threadID := r.PathValue("id")
+		if threadID == "" {
+			http.Error(w, "Missing thread ID", http.StatusBadRequest)
+			return
+		}
+
+		// Check if thread is locked (using COALESCE to fallback NULL to 0)
+		var threadTitle string
+		var isLocked int
+		err := db.QueryRow("SELECT title, COALESCE(locked, 0) FROM forum WHERE thread_id = ?", threadID).Scan(&threadTitle, &isLocked)
+		if err != nil {
+			http.Error(w, "Thread not found", http.StatusNotFound)
+			return
+		}
+
+		if isLocked == 1 {
+			http.Error(w, "This thread is locked. Replies are disabled.", http.StatusForbidden)
+			return
+		}
+
+		if err := r.ParseForm(); err != nil {
+			http.Error(w, "Invalid form data", http.StatusBadRequest)
+			return
+		}
+
+		replyText := strings.TrimSpace(r.FormValue("text"))
+		userID := getUserID(r, sm)
+
+		if replyText == "" {
+			http.Error(w, "Reply text cannot be empty", http.StatusBadRequest)
+			return
+		}
+
+		// Sanitize reply text against bad word filter
+		replyText = censor.Sanitize(replyText)
+
+		replyID := generateUUID()
+		now := time.Now().UTC().Format(time.RFC3339)
+
+		query := `
+            INSERT INTO replies (reply_id, thread_id, title, author_id, text, created_at)
+            VALUES (?, ?, ?, ?, ?, ?)
+        `
+		_, err = db.Exec(query, replyID, threadID, threadTitle, userID, replyText, now)
+		if err != nil {
+			log.Printf("Failed to insert reply: %v", err)
+			http.Error(w, "Database error inserting reply", http.StatusInternalServerError)
+			return
+		}
+
+		props, err := fetchThreadDetails(db, threadID)
+		if err != nil {
+			http.Error(w, "Database error loading updated thread", http.StatusInternalServerError)
+			return
+		}
+
+		props.IsAdmin = checkIsAdmin(db, r, sm)
+		components.ThreadModal(props).Render(r.Context(), w)
+	}
+}
+
+func fetchThreadDetails(db *sql.DB, threadID string) (components.ThreadDetailsProps, error) {
+	var props components.ThreadDetailsProps
+	var lockedInt int
+
+	// Query thread header info with NULL safety
+	queryThread := `
+        SELECT f.thread_id, f.category_id, f.title, COALESCE(u.username, 'Anonymous'), COALESCE(f.locked, 0), f.created_at
+        FROM forum f
+        LEFT JOIN user u ON f.author_id = u.id
+        WHERE f.thread_id = ?
+    `
+	err := db.QueryRow(queryThread, threadID).Scan(&props.ThreadID, &props.Category, &props.Title, &props.Author, &lockedInt, &props.CreatedAt)
+	if err != nil {
+		return props, err
+	}
+
+	props.IsLocked = (lockedInt == 1)
+
+	// Query replies
+	queryReplies := `
+        SELECT r.reply_id, COALESCE(u.username, 'Anonymous'), r.text, r.created_at
+        FROM replies r
+        LEFT JOIN user u ON r.author_id = u.id
+        WHERE r.thread_id = ?
+        ORDER BY r.created_at ASC
+    `
+	rows, err := db.Query(queryReplies, threadID)
+	if err == nil {
+		defer rows.Close()
+		for rows.Next() {
+			var r components.ReplyItem
+			if err := rows.Scan(&r.ID, &r.Author, &r.Text, &r.CreatedAt); err == nil {
+				props.Replies = append(props.Replies, r)
+			}
+		}
+	}
+	return props, nil
+}
+
+const (
+	maxChatLength   = 100 // Character limit
+	chatCooldownSec = 2   // 10-second reply cooldown per user
+)
+
+func HandleGetChatMessages(db *sql.DB, sm *scs.SessionManager) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		cutoff := time.Now().UTC().Add(-24 * time.Hour).Format(time.RFC3339)
+		_, _ = db.Exec("DELETE FROM global_chat_message WHERE timestamp < ?", cutoff)
+
+		messages, err := fetchActiveChatMessages(db)
+		if err != nil {
+			log.Printf("Error fetching chat messages: %v", err)
+			http.Error(w, "Database error", http.StatusInternalServerError)
+			return
+		}
+
+		userID := getUserID(r, sm)
+		isAdmin := checkIsAdmin(db, r, sm)
+		components.ChatMessages(messages, userID, isAdmin).Render(r.Context(), w)
+	}
+}
+
+// HandlePostChatMessage processes new chat submissions with auto-censoring, character limits, and a 10s cooldown
+func HandlePostChatMessage(db *sql.DB, sm *scs.SessionManager) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		userID := getUserID(r, sm)
+		if userID == "" {
+			http.Error(w, "Unauthorized", http.StatusUnauthorized)
+			return
+		}
+
+		if err := r.ParseForm(); err != nil {
+			http.Error(w, "Invalid input", http.StatusBadRequest)
+			return
+		}
+
+		msgText := strings.TrimSpace(r.FormValue("message"))
+		if msgText == "" {
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+
+		// 1. Censor profanity using censor package
+		msgText = censor.Sanitize(msgText)
+
+		// 2. Enforce character limit
+		if len(msgText) > maxChatLength {
+			msgText = msgText[:maxChatLength]
+		}
+
+		// 3. Enforce 10-second per-user cooldown
+		var lastPostStr string
+		err := db.QueryRow(`
+			SELECT timestamp FROM global_chat_message 
+			WHERE sender_id = ? 
+			ORDER BY timestamp DESC LIMIT 1
+		`, userID).Scan(&lastPostStr)
+
+		if err == nil {
+			lastPostTime, parseErr := time.Parse(time.RFC3339, lastPostStr)
+			if parseErr == nil && time.Since(lastPostTime) < time.Duration(chatCooldownSec)*time.Second {
+				messages, _ := fetchActiveChatMessages(db)
+				isAdmin := checkIsAdmin(db, r, sm)
+				components.ChatMessages(messages, userID, isAdmin).Render(r.Context(), w)
+				return
+			}
+		}
+
+		msgID := generateUUID()
+		now := time.Now().UTC().Format(time.RFC3339)
+
+		query := `INSERT INTO global_chat_message (message_id, sender_id, content, timestamp) VALUES (?, ?, ?, ?)`
+		_, err = db.Exec(query, msgID, userID, msgText, now)
+		if err != nil {
+			log.Printf("Failed to insert chat message: %v", err)
+			http.Error(w, "Database error", http.StatusInternalServerError)
+			return
+		}
+
+		messages, _ := fetchActiveChatMessages(db)
+		isAdmin := checkIsAdmin(db, r, sm)
+		components.ChatMessages(messages, userID, isAdmin).Render(r.Context(), w)
+	}
+}
+
+// HandleDeleteChatMessage allows users to delete their own messages, and admins to delete any
+func HandleDeleteChatMessage(db *sql.DB, sm *scs.SessionManager) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		userID := getUserID(r, sm)
+		if userID == "" {
+			http.Error(w, "Unauthorized", http.StatusUnauthorized)
+			return
+		}
+
+		isAdmin := checkIsAdmin(db, r, sm)
+		msgID := r.PathValue("id")
+
+		if msgID != "" {
+			var err error
+			if isAdmin {
+				_, err = db.Exec("DELETE FROM global_chat_message WHERE message_id = ?", msgID)
+			} else {
+				_, err = db.Exec("DELETE FROM global_chat_message WHERE message_id = ? AND sender_id = ?", msgID, userID)
+			}
+			if err != nil {
+				log.Printf("Failed to delete chat message %s: %v", msgID, err)
+			}
+		}
+
+		messages, _ := fetchActiveChatMessages(db)
+		components.ChatMessages(messages, userID, isAdmin).Render(r.Context(), w)
+	}
+}
+
+func fetchActiveChatMessages(db *sql.DB) ([]components.ChatMessage, error) {
+	cutoff := time.Now().UTC().Add(-24 * time.Hour).Format(time.RFC3339)
+	query := `
+		SELECT m.message_id, m.sender_id, COALESCE(u.username, 'User'), m.content, m.timestamp
+		FROM global_chat_message m
+		LEFT JOIN user u ON m.sender_id = u.id
+		WHERE m.timestamp >= ?
+		ORDER BY m.timestamp ASC
+		LIMIT 50
+	`
+	rows, err := db.Query(query, cutoff)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var messages []components.ChatMessage
+	for rows.Next() {
+		var msg components.ChatMessage
+		var rawTime string
+		if err := rows.Scan(&msg.ID, &msg.UserID, &msg.Username, &msg.Message, &rawTime); err == nil {
+			if parsedTime, parseErr := time.Parse(time.RFC3339, rawTime); parseErr == nil {
+				msg.CreatedAt = parsedTime.Format("15:04")
+			} else {
+				msg.CreatedAt = rawTime
+			}
+			messages = append(messages, msg)
+		}
+	}
+	return messages, nil
 }
