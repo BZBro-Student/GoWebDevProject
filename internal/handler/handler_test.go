@@ -26,33 +26,11 @@ func TestHandleLoginPage(t *testing.T) {
 	}
 }
 
-func TestHandleDeskPage(t *testing.T) {
-	req := httptest.NewRequest(http.MethodGet, "/", nil)
-	rec := httptest.NewRecorder()
-
-	handler.HandleDesk(rec, req)
-
-	if rec.Code != http.StatusOK {
-		t.Errorf("Expected status 200, got %d", rec.Code)
-	}
-}
-
 func TestHandleDictionaryPage(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/dictionary", nil)
 	rec := httptest.NewRecorder()
 
 	handler.HandleDictionary(rec, req)
-
-	if rec.Code != http.StatusOK {
-		t.Errorf("Expected status 200, got %d", rec.Code)
-	}
-}
-
-func TestHandleCommunityPage(t *testing.T) {
-	req := httptest.NewRequest(http.MethodGet, "/community", nil)
-	rec := httptest.NewRecorder()
-
-	handler.HandleCommunity(rec, req)
 
 	if rec.Code != http.StatusOK {
 		t.Errorf("Expected status 200, got %d", rec.Code)

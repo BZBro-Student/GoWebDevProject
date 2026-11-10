@@ -9,6 +9,16 @@ package components
 import "github.com/a-h/templ"
 import templruntime "github.com/a-h/templ/runtime"
 
+import "fmt"
+
+type ChatMessage struct {
+	ID        string
+	UserID    string
+	Username  string
+	Message   string
+	CreatedAt string
+}
+
 func Chat() templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
@@ -26,9 +36,105 @@ func Chat() templ.Component {
 		}
 		ctx = templ.InitializeContext(ctx)
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<div class=\"flex flex-col gap-2 w-full max-w-sm\"><span class=\"text-sm font-medium text-brand-light\">Chat</span><div class=\"flex flex-col h-96 w-full border border-brand-surface rounded-md bg-brand-surface/10 overflow-hidden\"><div class=\"flex-1 p-3 overflow-y-auto\"></div><div class=\"p-2 border-t border-brand-surface mt-auto\"><div class=\"flex items-center gap-2 px-3 py-1 bg-brand-surface border border-brand-surface rounded-full focus-within:ring-2 focus-within:ring-brand-accent\"><input type=\"text\" placeholder=\"Message\" class=\"w-full bg-transparent text-brand-light placeholder:text-brand-light/60 outline-none text-sm\"> <button type=\"button\" class=\"px-3 py-1 text-brand-light hover:bg-brand-accent hover:text-white rounded-full text-xs font-medium border border-brand-surface transition-colors cursor-pointer shrink-0\">send</button></div></div></div></div>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<div class=\"flex flex-col gap-2 w-full max-w-sm\"><span class=\"text-sm font-medium text-brand-light\">Live Chat</span><div class=\"flex flex-col h-96 w-full border border-brand-surface rounded-md bg-brand-surface/10 overflow-hidden\"><!-- Polling Container (Fetches every 1 second) --><div id=\"chat-messages\" hx-get=\"/api/chat/messages\" hx-trigger=\"load, every 1s\" hx-swap=\"innerHTML scroll:bottom\" class=\"flex-1 p-3 overflow-y-auto space-y-2 flex flex-col\"><!-- Messages render here --></div><!-- Message Input Form --><form hx-post=\"/api/chat/messages\" hx-target=\"#chat-messages\" hx-swap=\"innerHTML scroll:bottom\" hx-on::after-request=\"if(event.detail.successful) this.reset();\" class=\"p-2 border-t border-brand-surface mt-auto flex flex-col gap-1\"><div class=\"flex items-center gap-2 px-3 py-1 bg-brand-surface border border-brand-surface rounded-full focus-within:ring-2 focus-within:ring-brand-accent\"><input type=\"text\" name=\"message\" maxlength=\"100\" required autocomplete=\"off\" placeholder=\"Message (max 100 chars)...\" class=\"w-full bg-transparent text-brand-light placeholder:text-brand-light/60 outline-none text-sm\"> <button type=\"submit\" class=\"px-3 py-1 text-brand-light hover:bg-brand-accent hover:text-white rounded-full text-xs font-medium border border-brand-surface transition-colors cursor-pointer shrink-0\">send</button></div></form></div></div>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
+		}
+		return nil
+	})
+}
+
+func ChatMessages(messages []ChatMessage, currentUserID string, isAdmin bool) templ.Component {
+	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
+		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
+		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
+			return templ_7745c5c3_CtxErr
+		}
+		templ_7745c5c3_Buffer, templ_7745c5c3_IsBuffer := templruntime.GetBuffer(templ_7745c5c3_W)
+		if !templ_7745c5c3_IsBuffer {
+			defer func() {
+				templ_7745c5c3_BufErr := templruntime.ReleaseBuffer(templ_7745c5c3_Buffer)
+				if templ_7745c5c3_Err == nil {
+					templ_7745c5c3_Err = templ_7745c5c3_BufErr
+				}
+			}()
+		}
+		ctx = templ.InitializeContext(ctx)
+		ctx = templ.ClearChildren(ctx)
+		if len(messages) == 0 {
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, "<div class=\"text-xs text-brand-light/40 italic text-center py-4 my-auto\">No active chat messages. Say hello!</div>")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+		} else {
+			for _, msg := range messages {
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, "<div class=\"flex items-start justify-between gap-1 group text-xs\"><div class=\"break-words max-w-[85%]\"><span class=\"font-semibold text-blue-400 mr-1.5\">")
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				var templ_7745c5c3_Var3 string
+				templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.JoinStringErrs(msg.Username)
+				if templ_7745c5c3_Err != nil {
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `view/components/chat.templ`, Line: 67, Col: 83}
+				}
+				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var3))
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 4, ":</span> <span class=\"text-brand-light/90\">")
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				var templ_7745c5c3_Var4 string
+				templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.JoinStringErrs(msg.Message)
+				if templ_7745c5c3_Err != nil {
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `view/components/chat.templ`, Line: 68, Col: 67}
+				}
+				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var4))
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 5, "</span></div><div class=\"flex items-center gap-1 shrink-0\"><span class=\"text-[10px] text-brand-light/40\">")
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				var templ_7745c5c3_Var5 string
+				templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.JoinStringErrs(msg.CreatedAt)
+				if templ_7745c5c3_Err != nil {
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `view/components/chat.templ`, Line: 71, Col: 81}
+				}
+				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var5))
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 6, "</span> ")
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				if isAdmin || msg.UserID == currentUserID {
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 7, "<button type=\"button\" hx-delete=\"")
+					if templ_7745c5c3_Err != nil {
+						return templ_7745c5c3_Err
+					}
+					var templ_7745c5c3_Var6 string
+					templ_7745c5c3_Var6, templ_7745c5c3_Err = templruntime.NewAttributeExpression(fmt.Sprintf("/api/chat/messages/%s", msg.ID)).Resolve(ctx)
+					if templ_7745c5c3_Err != nil {
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `view/components/chat.templ`, Line: 75, Col: 84}
+					}
+					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var6)
+					if templ_7745c5c3_Err != nil {
+						return templ_7745c5c3_Err
+					}
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 8, "\" hx-target=\"#chat-messages\" hx-swap=\"innerHTML\" class=\"text-red-400 hover:text-red-300 opacity-0 group-hover:opacity-100 transition-opacity ml-1 font-bold text-xs\" title=\"Delete Message\">&times;</button>")
+					if templ_7745c5c3_Err != nil {
+						return templ_7745c5c3_Err
+					}
+				}
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 9, "</div></div>")
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+			}
 		}
 		return nil
 	})

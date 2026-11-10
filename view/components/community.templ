@@ -1,17 +1,302 @@
 package components
 
-templ Community() {
+import "fmt"
+
+type ForumPost struct {
+    ID        string
+    Title     string
+    Author    string
+    CreatedAt string
+    Replies   int
+}
+
+type ForumProps struct {
+    Category    string
+    Title       string
+    Posts       []ForumPost
+    CurrentPage int
+    TotalPages  int
+}
+
+type ReplyItem struct {
+    ID        string
+    Author    string
+    Text      string
+    CreatedAt string
+}
+
+type ThreadDetailsProps struct {
+    ThreadID  string
+    Category  string
+    Title     string
+    Author    string
+    CreatedAt string
+    IsLocked  bool
+    IsAdmin   bool
+    Replies   []ReplyItem
+}
+
+templ Community(generalProps ForumProps, qnaProps ForumProps) {
     <div class="flex gap-4 w-full h-[calc(100vh-60px)] p-4 box-border">
         <div class="flex-1 flex flex-col gap-4 h-full overflow-hidden">
-        <textarea
-            class="w-full flex-1 py-6 px-4 bg-brand-dark text-white border border-[#444444] rounded-md outline-none box-border leading-relaxed text-[15px] overflow-y-auto resize-none"
-            readonly
-        >Pane 1 Test</textarea>
-        <textarea
-            class="w-full flex-1 py-6 px-4 bg-brand-dark text-white border border-[#444444] rounded-md outline-none box-border leading-relaxed text-[15px] overflow-y-auto resize-none"
-            readonly
-        >Pane 2 Test</textarea>
+            <!-- Top Forum Panel -->
+            @ForumSection(generalProps)
+
+            <!-- Bottom Forum Panel -->
+            @ForumSection(qnaProps)
         </div>
         @SideBar([]templ.Component{Chat()})
+    </div>
+
+    <!-- Target container for modal popup swaps -->
+    <div id="modal-container"></div>
+}
+
+templ ForumSection(props ForumProps) {
+    <div 
+        id={ fmt.Sprintf("forum-%s", props.Category) } 
+        class="flex-1 flex flex-col bg-brand-dark border border-[#444444] rounded-md overflow-hidden box-border"
+    >
+        <!-- Forum Header -->
+        <div class="px-4 py-3 bg-[#2a2a2a] border-b border-[#444444] flex items-center justify-between">
+            <h2 class="text-white text-base font-semibold">{ props.Title }</h2>
+            <button 
+                hx-get={ fmt.Sprintf("/community/new-post?category=%s", props.Category) }
+                hx-target="#modal-container"
+                class="bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold px-3 py-1.5 rounded transition"
+            >
+                + New Post
+            </button>
+        </div>
+
+        <!-- Scrollable Posts List -->
+        <div class="flex-1 overflow-y-auto p-4 space-y-3">
+            if len(props.Posts) == 0 {
+                <div class="text-brand-light/40 italic text-sm text-center py-8">
+                    No posts found in this section.
+                </div>
+            } else {
+                for _, post := range props.Posts {
+                    <div 
+                        hx-get={ fmt.Sprintf("/community/threads/%s", post.ID) }
+                        hx-target="#modal-container"
+                        class="p-3 bg-[#262626] border border-[#383838] rounded hover:border-blue-500 cursor-pointer transition"
+                    >
+                        <div class="flex items-center justify-between">
+                            <h3 class="text-white text-sm font-medium">{ post.Title }</h3>
+                            <span class="text-xs text-brand-light/60">{ post.CreatedAt }</span>
+                        </div>
+                        <div class="flex items-center justify-between mt-2 text-xs text-brand-light/60">
+                            <span>Posted by <strong class="text-gray-300">{ post.Author }</strong></span>
+                            <span class="bg-[#333333] px-2 py-0.5 rounded text-[#aaa]">{ fmt.Sprintf("%d replies", post.Replies) }</span>
+                        </div>
+                    </div>
+                }
+            }
+        </div>
+
+        <!-- Pagination Footer -->
+        <div class="px-4 py-2 bg-[#2a2a2a] border-t border-[#444444] flex items-center justify-between text-xs text-brand-light">
+            <span>Page { fmt.Sprintf("%d of %d", props.CurrentPage, props.TotalPages) }</span>
+            <div class="flex gap-2">
+                if props.CurrentPage > 1 {
+                    <button 
+                        hx-get={ fmt.Sprintf("/community/forum?category=%s&page=%d", props.Category, props.CurrentPage-1) }
+                        hx-target={ fmt.Sprintf("#forum-%s", props.Category) }
+                        hx-swap="outerHTML"
+                        class="px-2.5 py-1 bg-[#3a3a3a] hover:bg-[#4a4a4a] text-white rounded transition"
+                    >
+                        Prev
+                    </button>
+                } else {
+                    <button disabled class="px-2.5 py-1 bg-[#222222] text-gray-600 rounded cursor-not-allowed">
+                        Prev
+                    </button>
+                }
+
+                if props.CurrentPage < props.TotalPages {
+                    <button 
+                        hx-get={ fmt.Sprintf("/community/forum?category=%s&page=%d", props.Category, props.CurrentPage+1) }
+                        hx-target={ fmt.Sprintf("#forum-%s", props.Category) }
+                        hx-swap="outerHTML"
+                        class="px-2.5 py-1 bg-[#3a3a3a] hover:bg-[#4a4a4a] text-white rounded transition"
+                    >
+                        Next
+                    </button>
+                } else {
+                    <button disabled class="px-2.5 py-1 bg-[#222222] text-gray-600 rounded cursor-not-allowed">
+                        Next
+                    </button>
+                }
+            </div>
+        </div>
+    </div>
+}
+
+templ NewPostModal(category string) {
+    <div class="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+        <div class="bg-brand-dark border border-[#444444] rounded-lg w-full max-w-lg p-6 shadow-2xl">
+            <div class="flex justify-between items-center border-b border-[#444444] pb-3 mb-4">
+                <h3 class="text-lg font-semibold text-white">
+                    Create New Post ({ category })
+                </h3>
+                <button 
+                    onclick="document.getElementById('modal-container').innerHTML = ''"
+                    class="text-gray-400 hover:text-white text-xl font-bold"
+                >&times;</button>
+            </div>
+
+            <form 
+                hx-post="/community/posts" 
+                hx-target={ fmt.Sprintf("#forum-%s", category) }
+                hx-swap="outerHTML"
+                hx-on::after-request="if(event.detail.successful) document.getElementById('modal-container').innerHTML = ''"
+                class="space-y-4"
+            >
+                <input type="hidden" name="category" value={ category } />
+                
+                <div>
+                    <label class="block text-xs font-semibold text-brand-light mb-1">Title</label>
+                    <input 
+                        type="text" 
+                        name="title" 
+                        required 
+                        placeholder="Enter post title..."
+                        class="w-full bg-[#262626] border border-[#444444] rounded px-3 py-2 text-white text-sm outline-none focus:border-blue-500" 
+                    />
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold text-brand-light mb-1">Content</label>
+                    <textarea 
+                        name="content" 
+                        rows="4" 
+                        required 
+                        placeholder="Write your post content..."
+                        class="w-full bg-[#262626] border border-[#444444] rounded px-3 py-2 text-white text-sm outline-none focus:border-blue-500 resize-none"
+                    ></textarea>
+                </div>
+
+                <div class="flex justify-end gap-3 pt-2">
+                    <button 
+                        type="button" 
+                        onclick="document.getElementById('modal-container').innerHTML = ''"
+                        class="px-4 py-2 bg-[#3a3a3a] text-white text-xs font-semibold rounded hover:bg-[#4a4a4a] transition"
+                    >
+                        Cancel
+                    </button>
+                    <button 
+                        type="submit" 
+                        class="px-4 py-2 bg-blue-600 text-white text-xs font-semibold rounded hover:bg-blue-500 transition"
+                    >
+                        Publish Post
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+}
+
+templ ThreadModal(props ThreadDetailsProps) {
+    <div class="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+        <div class="bg-brand-dark border border-[#444444] rounded-lg w-full max-w-2xl max-h-[85vh] flex flex-col p-6 shadow-2xl">
+            <!-- Header -->
+            <div class="flex justify-between items-start border-b border-[#444444] pb-3 mb-4">
+                <div>
+                    <div class="flex items-center gap-2">
+                        <h3 class="text-lg font-bold text-white">{ props.Title }</h3>
+                        if props.IsLocked {
+                            <span class="bg-red-900/60 text-red-300 text-[10px] font-semibold px-2 py-0.5 rounded border border-red-700">
+                                Locked
+                            </span>
+                        }
+                    </div>
+                    <div class="text-xs text-brand-light/60 mt-1">
+                        Started by <strong class="text-gray-300">{ props.Author }</strong> • { props.CreatedAt }
+                    </div>
+                </div>
+
+                <!-- Admin Actions & Close Button -->
+                <div class="flex items-center gap-2">
+                    if props.IsAdmin {
+                        <!-- Lock / Unlock Toggle Button -->
+                        <button 
+                            hx-post={ fmt.Sprintf("/community/threads/%s/lock", props.ThreadID) }
+                            hx-target="#modal-container"
+                            hx-swap="innerHTML"
+                            class="px-2.5 py-1 bg-[#3a3a3a] hover:bg-[#4a4a4a] text-yellow-400 text-xs font-semibold rounded border border-yellow-600/40 transition"
+                        >
+                            if props.IsLocked {
+                                Unlock Thread
+                            } else {
+                                Lock Thread
+                            }
+                        </button>
+
+                        <!-- Delete Thread Button -->
+                        <button 
+                            hx-delete={ fmt.Sprintf("/community/threads/%s", props.ThreadID) }
+                            hx-confirm="Are you sure you want to delete this thread? This action cannot be undone."
+                            hx-target="#modal-container"
+                            hx-swap="innerHTML"
+                            class="px-2.5 py-1 bg-red-900/40 hover:bg-red-800/60 text-red-300 text-xs font-semibold rounded border border-red-700/50 transition"
+                        >
+                            Delete
+                        </button>
+                    }
+                    <button 
+                        onclick="document.getElementById('modal-container').innerHTML = ''"
+                        class="text-gray-400 hover:text-white text-xl font-bold ml-2"
+                    >&times;</button>
+                </div>
+            </div>
+
+            <!-- Thread Messages & Replies List -->
+            <div class="flex-1 overflow-y-auto space-y-3 mb-4 pr-1">
+                if len(props.Replies) == 0 {
+                    <div class="text-brand-light/40 italic text-sm py-4 text-center">
+                        No messages yet.
+                    </div>
+                } else {
+                    for _, reply := range props.Replies {
+                        <div class="p-3 bg-[#262626] border border-[#383838] rounded">
+                            <div class="flex justify-between text-xs text-brand-light/60 mb-1">
+                                <span class="font-semibold text-gray-300">{ reply.Author }</span>
+                                <span>{ reply.CreatedAt }</span>
+                            </div>
+                            <div class="text-sm text-white whitespace-pre-wrap">{ reply.Text }</div>
+                        </div>
+                    }
+                }
+            </div>
+
+           <!-- Reply Form or Locked Notice -->
+            if props.IsLocked {
+                <div class="border-t border-[#444444] pt-4 text-center text-xs text-red-400 italic">
+                    🔒 This thread has been locked by an administrator. Replies are disabled.
+                </div>
+            } else {
+                <form 
+                    hx-post={ fmt.Sprintf("/community/threads/%s/replies", props.ThreadID) }
+                    hx-target="#modal-container"
+                    hx-swap="innerHTML"
+                    class="border-t border-[#444444] pt-4 flex gap-2"
+                >
+                    <textarea 
+                        name="text" 
+                        rows="2" 
+                        required 
+                        placeholder="Write a reply..."
+                        class="flex-1 bg-[#262626] border border-[#444444] rounded px-3 py-2 text-white text-sm outline-none focus:border-blue-500 resize-none"
+                    ></textarea>
+                    <button 
+                        type="submit" 
+                        class="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold rounded self-end transition"
+                    >
+                        Reply
+                    </button>
+                </form>
+            }
+        </div>
     </div>
 }
