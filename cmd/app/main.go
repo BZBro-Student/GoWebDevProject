@@ -71,7 +71,7 @@ func main() {
 	mux.Handle("/admin", requireAdmin(handler.HandleAdmin))
 	mux.Handle("/upload", requireAdmin(handler.HandleUpload(database)))
 	mux.Handle("/help", requireAuth(handler.HandleHelp))
-	mux.Handle("/settings", requireAuth(handler.HandleSettings))
+	mux.Handle("/settings", requireAuth(handler.HandleSettings(database, sessionManager)))
 
 	// doc logic
 	mux.Handle("GET /search", requireAuth(handler.HandleSearch(database)))
@@ -92,10 +92,31 @@ func main() {
 	mux.Handle("POST /community/threads/{id}/lock", requireAdmin(handler.HandleToggleLockThread(database, sessionManager)))
 	mux.Handle("DELETE /community/threads/{id}", requireAdmin(handler.HandleDeleteThread(database, sessionManager)))
 
+	// settings & data deletion logic
+	mux.Handle("DELETE /settings/dictionary", requireAuth(handler.HandleClearDictionary(database, sessionManager)))
+	mux.Handle("DELETE /settings/account", requireAuth(handler.HandleDeleteAccount(database, sessionManager)))
+
 	// chat logic
 	mux.Handle("GET /api/chat/messages", requireAuth(handler.HandleGetChatMessages(database, sessionManager)))
 	mux.Handle("POST /api/chat/messages", requireAuth(handler.HandlePostChatMessage(database, sessionManager)))
 	mux.Handle("DELETE /api/chat/messages/{id}", requireAdmin(handler.HandleDeleteChatMessage(database, sessionManager)))
+
+	mux.HandleFunc("GET /robots.txt", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+		w.Write([]byte(`User-agent: *
+Allow: /
+Allow: /tutorial
+Allow: /help
+Allow: /community
+
+Disallow: /settings
+Disallow: /desk
+Disallow: /login
+Disallow: /register
+Disallow: /chat
+Disallow: /static/
+`))
+	})
 
 	sessionHandler := sessionManager.LoadAndSave(mux)
 

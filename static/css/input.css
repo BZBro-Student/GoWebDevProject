@@ -7,3 +7,48 @@
   --color-brand-accent: #697565;
   --color-brand-light: #ECDFCC;
 }
+
+/* Light Mode Palette & Surface Overrides */
+html.light-mode {
+  --color-brand-dark: #FFFFFF;
+  --color-brand-surface: #F4F3EF;
+  --color-brand-accent: #5A6656;
+  --color-brand-light: #1E201E;
+}
+
+html.light-mode .bg-\[\#262626\] {
+  background-color: #F9F8F6;
+}
+
+html.light-mode .bg-\[\#1e1e1e\],
+html.light-mode .bg-\[\#2a2a2a\] {
+  background-color: #EFECE6;
+}
+
+html.light-mode .border-\[\#444444\],
+html.light-mode .border-\[\#383838\],
+html.light-mode .border-\[\#333333\] {
+  border-color: #D6D2C9;
+}
+
+html.light-mode .text-white {
+  color: #1E201E;
+}
+
+html.light-mode .text-gray-200,
+html.light-mode .text-gray-300 {
+  color: #2F322E;
+}
+
+html.light-mode .text-gray-400 {
+  color: #5C605A;
+}
+
+/* Keep white text on solid colored badges & buttons */
+html.light-mode .bg-blue-600,
+html.light-mode .bg-red-600,
+html.light-mode .bg-purple-600,
+html.light-mode .bg-emerald-600,
+html.light-mode .bg-amber-600 {
+  color: #FFFFFF;
+}

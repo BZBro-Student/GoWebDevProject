@@ -10,6 +10,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"net/url"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -84,12 +85,20 @@ func HandleHelp(w http.ResponseWriter, r *http.Request) {
 	renderHelper(w, r, components.Help())
 }
 
-func HandleSettings(w http.ResponseWriter, r *http.Request) {
-	if r.URL.Path != "/settings" {
-		http.NotFound(w, r)
-		return
+func HandleSettings(db *sql.DB, sm *scs.SessionManager) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/settings" {
+			http.NotFound(w, r)
+			return
+		}
+
+		var username string
+		if userID := getUserID(r, sm); userID != "" {
+			_ = db.QueryRow("SELECT username FROM user WHERE id = ?", userID).Scan(&username)
+		}
+
+		renderHelper(w, r, components.Settings(username))
 	}
-	renderHelper(w, r, components.Settings())
 }
 
 // Health API
@@ -1092,4 +1101,114 @@ func fetchActiveChatMessages(db *sql.DB) ([]components.ChatMessage, error) {
 		}
 	}
 	return messages, nil
+}
+
+// HandleClearDictionary wipes all saved dictionary entries for the current user
+func HandleClearDictionary(db *sql.DB, sm *scs.SessionManager) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		userID := getUserID(r, sm)
+		if userID == "" {
+			http.Error(w, "Unauthorized", http.StatusUnauthorized)
+			return
+		}
+
+		_, err := db.Exec("DELETE FROM user_dictionary WHERE id = ?", userID)
+		if err != nil {
+			log.Printf("Failed to clear dictionary for user %s: %v", userID, err)
+			w.Header().Set("Content-Type", "text/html")
+			fmt.Fprint(w, `<div class="bg-red-950/50 border border-red-700 text-red-200 px-4 py-3 rounded text-xs">Failed to clear dictionary data. Please try again.</div>`)
+			return
+		}
+
+		w.Header().Set("Content-Type", "text/html")
+		fmt.Fprint(w, `<div class="bg-emerald-950/50 border border-emerald-700 text-emerald-200 px-4 py-3 rounded text-xs">Your personal dictionary has been cleared.</div>`)
+	}
+}
+
+// HandleDeleteAccount permanently deletes the user's data, anonymizes forum history, and destroys the session
+// Make sure "io" and "net/url" are imported at the top of the file
+
+func HandleDeleteAccount(db *sql.DB, sm *scs.SessionManager) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		userID := getUserID(r, sm)
+		if userID == "" {
+			http.Error(w, "Unauthorized", http.StatusUnauthorized)
+			return
+		}
+
+		// Go's r.ParseForm() skips the request body on DELETE requests, so parse it explicitly
+		bodyBytes, err := io.ReadAll(r.Body)
+		if err != nil {
+			http.Error(w, "Invalid form submission", http.StatusBadRequest)
+			return
+		}
+
+		values, err := url.ParseQuery(string(bodyBytes))
+		if err != nil {
+			http.Error(w, "Invalid form data", http.StatusBadRequest)
+			return
+		}
+
+		confirmVal := strings.TrimSpace(values.Get("confirm_delete"))
+		if confirmVal == "" {
+			confirmVal = strings.TrimSpace(r.URL.Query().Get("confirm_delete"))
+		}
+
+		if confirmVal != "DELETE" {
+			w.Header().Set("Content-Type", "text/html")
+			fmt.Fprint(w, `<div class="bg-red-950/50 border border-red-700 text-red-200 px-4 py-3 rounded text-xs">Confirmation failed. Please type <strong>DELETE</strong> in all caps to delete your account.</div>`)
+			return
+		}
+
+		tx, err := db.Begin()
+		if err != nil {
+			http.Error(w, "Database transaction error", http.StatusInternalServerError)
+			return
+		}
+		defer tx.Rollback()
+
+		// 1. Delete user's dictionary entries
+		if _, err := tx.Exec("DELETE FROM user_dictionary WHERE id = ?", userID); err != nil {
+			log.Printf("Account deletion - failed removing dictionary for %s: %v", userID, err)
+			http.Error(w, "Error deleting dictionary data", http.StatusInternalServerError)
+			return
+		}
+
+		// 2. Delete user's active global chat messages
+		if _, err := tx.Exec("DELETE FROM global_chat_message WHERE sender_id = ?", userID); err != nil {
+			log.Printf("Account deletion - failed removing chat messages for %s: %v", userID, err)
+			http.Error(w, "Error deleting chat messages", http.StatusInternalServerError)
+			return
+		}
+
+		// 3. Anonymize forum threads & replies so COALESCE(u.username, 'Anonymous') displays cleanly
+		if _, err := tx.Exec("UPDATE forum SET author_id = NULL WHERE author_id = ?", userID); err != nil {
+			log.Printf("Account deletion - failed anonymizing threads for %s: %v", userID, err)
+			http.Error(w, "Error updating community threads", http.StatusInternalServerError)
+			return
+		}
+
+		if _, err := tx.Exec("UPDATE replies SET author_id = NULL WHERE author_id = ?", userID); err != nil {
+			log.Printf("Account deletion - failed anonymizing replies for %s: %v", userID, err)
+			http.Error(w, "Error updating community replies", http.StatusInternalServerError)
+			return
+		}
+
+		// 4. Delete the user record
+		if _, err := tx.Exec("DELETE FROM user WHERE id = ?", userID); err != nil {
+			log.Printf("Account deletion - failed deleting user %s: %v", userID, err)
+			http.Error(w, "Error deleting user account", http.StatusInternalServerError)
+			return
+		}
+
+		if err := tx.Commit(); err != nil {
+			http.Error(w, "Failed to finalize account deletion", http.StatusInternalServerError)
+			return
+		}
+
+		// 5. Destroy SCS session and redirect home
+		_ = sm.Destroy(r.Context())
+		w.Header().Set("HX-Redirect", "/")
+		w.WriteHeader(http.StatusOK)
+	}
 }

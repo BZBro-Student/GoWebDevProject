@@ -30,7 +30,7 @@ func Base(content templ.Component) templ.Component {
 		}
 		ctx = templ.InitializeContext(ctx)
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<!doctype html><html lang=\"en\"><head><title>Language Transfer</title><script src=\"https://unpkg.com/htmx.org@1.9.10\"></script><link rel=\"stylesheet\" href=\"/static/css/styles.css\"><script src=\"/static/js/static.js\"></script></head><body class=\"h-full bg-brand-surface text-brand-light antialiased\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<!doctype html><html lang=\"en\"><head><meta charset=\"UTF-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\"><title>Language Transfer</title><script>\n\t\t\t\tif (localStorage.getItem('theme') === 'light') {\n\t\t\t\t\tdocument.documentElement.classList.add('light-mode');\n\t\t\t\t}\n\t\t\t</script><script src=\"https://unpkg.com/htmx.org@1.9.10\"></script><link rel=\"stylesheet\" href=\"/static/css/styles.css\"><script src=\"/static/js/static.js\"></script></head><body class=\"h-full bg-brand-surface text-brand-light antialiased\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
