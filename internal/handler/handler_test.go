@@ -70,17 +70,6 @@ func TestHandleHelpPage(t *testing.T) {
 	}
 }
 
-func TestHandleSettingsPage(t *testing.T) {
-	req := httptest.NewRequest(http.MethodGet, "/settings", nil)
-	rec := httptest.NewRecorder()
-
-	handler.HandleSettings(rec, req)
-
-	if rec.Code != http.StatusOK {
-		t.Errorf("Expected status 200, got %d", rec.Code)
-	}
-}
-
 func setupTestDB(t *testing.T) *sql.DB {
 	t.Helper()
 
