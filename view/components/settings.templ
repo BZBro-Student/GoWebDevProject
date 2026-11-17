@@ -1,10 +1,202 @@
 package components
 
-templ Settings() {
-    <div class="flex gap-4 w-full h-[calc(100vh-60px)] box-border p-4">
-        <textarea 
-            class="flex-1 h-full min-w-[200px] py-6 px-4 bg-brand-dark text-white border border-[#444444] rounded-md resize-x outline-none box-border leading-relaxed text-[15px] overflow-y-auto" 
-            readonly>Pane 1 Test</textarea>
-        @SideBar([]templ.Component{})
-    </div>
+templ Settings(username string) {
+	<div class="flex gap-4 w-full h-[calc(100vh-60px)] p-4 box-border">
+		// Main Settings Content Panel
+		<div class="flex-1 bg-brand-dark text-brand-light border border-[#444444] rounded-md p-6 overflow-y-auto space-y-6 box-border leading-relaxed">
+			// Header
+			<div class="border-b border-[#444444] pb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+				<div>
+					<h1 class="text-2xl font-bold text-white mb-1">Account &amp; Privacy Settings</h1>
+					<p class="text-sm text-brand-light/80">
+						Manage your interface theme, review how your data is handled, or delete your stored records.
+					</p>
+				</div>
+				if username != "" {
+					<span class="text-xs font-mono bg-[#262626] border border-[#383838] px-3 py-1.5 rounded text-gray-300 self-start sm:self-auto">
+						Signed in as <strong class="text-white">{ username }</strong>
+					</span>
+				}
+			</div>
+
+			// Feedback Banner Target for HTMX Responses
+			<div id="settings-feedback"></div>
+
+			// SECTION 1: Appearance (Dark / Light Mode)
+			<section class="space-y-3">
+				<h2 class="text-lg font-semibold text-white flex items-center gap-2">
+					<span class="bg-blue-600 text-white text-xs px-2 py-0.5 rounded font-mono">APPEARANCE</span>
+					Interface Theme
+				</h2>
+				<div class="bg-[#262626] border border-[#383838] rounded-lg p-4 space-y-3 text-sm">
+					<p class="text-brand-light/90 text-xs">
+						Choose your preferred color scheme. Your selection is saved locally in your browser and applied immediately across the Desk, Community, and Tutorials.
+					</p>
+					<div class="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+						// Dark Mode Option
+						<button
+							type="button"
+							id="btn-theme-dark"
+							onclick="setAppTheme('dark')"
+							class="theme-card flex items-center justify-between p-3.5 rounded-lg border border-[#444444] bg-[#1e1e1e] text-left transition-all cursor-pointer"
+						>
+							<div class="space-y-0.5">
+								<span class="text-white font-semibold text-sm block">Dark Mode</span>
+								<span class="text-gray-400 text-xs block">Low-glare dark workspace (Default)</span>
+							</div>
+							<span class="w-5 h-5 rounded-full bg-[#121212] border border-[#555555] shrink-0"></span>
+						</button>
+
+						// Light Mode Option
+						<button
+							type="button"
+							id="btn-theme-light"
+							onclick="setAppTheme('light')"
+							class="theme-card flex items-center justify-between p-3.5 rounded-lg border border-[#444444] bg-[#1e1e1e] text-left transition-all cursor-pointer"
+						>
+							<div class="space-y-0.5">
+								<span class="text-white font-semibold text-sm block">Light Mode</span>
+								<span class="text-gray-400 text-xs block">High-contrast daylight workspace</span>
+							</div>
+							<span class="w-5 h-5 rounded-full bg-[#f3f4f6] border border-[#9ca3af] shrink-0"></span>
+						</button>
+					</div>
+				</div>
+			</section>
+
+			// SECTION 2: Data Handling & Privacy Policy
+			<section class="space-y-3">
+				<h2 class="text-lg font-semibold text-white flex items-center gap-2">
+					<span class="bg-emerald-600 text-white text-xs px-2 py-0.5 rounded font-mono">PRIVACY</span>
+					Data Handling Policy
+				</h2>
+				<div class="bg-[#262626] border border-[#383838] rounded-lg p-4 space-y-3 text-xs">
+					<p class="text-sm text-brand-light/90">
+						We collect only the minimum data required to operate your translation workspace and community features. We never sell, rent, or share your personal data with third parties.
+					</p>
+					<div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+						<div class="bg-[#1e1e1e] border border-[#333333] p-3.5 rounded space-y-1">
+							<span class="text-emerald-300 font-semibold block text-sm">1. Account &amp; Personal Dictionary</span>
+							<p class="text-gray-300 leading-relaxed">
+								Your login credentials, saved vocabulary definitions, and uploaded documents are stored privately in our SQLite database and linked exclusively to your account ID so your Desk translations persist across sessions.
+							</p>
+						</div>
+						<div class="bg-[#1e1e1e] border border-[#333333] p-3.5 rounded space-y-1">
+							<span class="text-emerald-300 font-semibold block text-sm">2. Ephemeral Global Chat (24h Wipe)</span>
+							<p class="text-gray-300 leading-relaxed">
+								Messages sent in the Global Chat sidebar are temporary. You can delete your own messages at any time, and all chat history is automatically purged from the database every <strong class="text-white">24 hours</strong>.
+							</p>
+						</div>
+						<div class="bg-[#1e1e1e] border border-[#333333] p-3.5 rounded space-y-1">
+							<span class="text-emerald-300 font-semibold block text-sm">3. Community Threads &amp; Moderation</span>
+							<p class="text-gray-300 leading-relaxed">
+								Forum posts and replies are filtered automatically to prevent profanity and abuse. If you delete your account, your authorship is stripped and attributed to <code class="text-gray-200">Anonymous</code> so ongoing discussions remain intact.
+							</p>
+						</div>
+						<div class="bg-[#1e1e1e] border border-[#333333] p-3.5 rounded space-y-1">
+							<span class="text-emerald-300 font-semibold block text-sm">4. Essential Session Cookies &amp; Local Storage</span>
+							<p class="text-gray-300 leading-relaxed">
+								We use a single strictly-necessary HTTP-only session cookie to keep you signed in, and browser <code class="text-gray-200">localStorage</code> to remember your Dark/Light theme preference. No advertising or tracking cookies are used.
+							</p>
+						</div>
+					</div>
+				</div>
+			</section>
+
+			// SECTION 3: Data Deletion & Danger Zone
+			<section class="space-y-3 pt-2 border-t border-[#444444]">
+				<h2 class="text-lg font-semibold text-red-400 flex items-center gap-2">
+					<span class="bg-red-600 text-white text-xs px-2 py-0.5 rounded font-mono">DANGER ZONE</span>
+					Delete Your Data
+				</h2>
+
+				<div class="space-y-3">
+					// Reset Dictionary Data Only
+					<div class="bg-[#262626] border border-[#383838] rounded-lg p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+						<div class="space-y-1">
+							<h3 class="text-white font-semibold text-sm">Reset Personal Dictionary</h3>
+							<p class="text-xs text-gray-300">
+								Permanently delete all saved words and definitions from your personal dictionary. Your account and forum posts will remain intact, and Desk documents will revert to <code class="text-yellow-300 font-mono">[unknown]</code> tokens.
+							</p>
+						</div>
+						<button
+							type="button"
+							hx-delete="/settings/dictionary"
+							hx-target="#settings-feedback"
+							hx-swap="innerHTML"
+							hx-confirm="Are you sure you want to delete ALL entries in your personal dictionary? This cannot be undone."
+							class="px-4 py-2 rounded bg-amber-600/20 hover:bg-amber-600/30 text-amber-300 border border-amber-600/50 text-xs font-semibold transition-colors shrink-0 cursor-pointer"
+						>
+							Clear Dictionary Data
+						</button>
+					</div>
+
+					// Permanent Account & Full Data Deletion
+					<div class="bg-red-950/20 border border-red-800/50 rounded-lg p-4 space-y-3">
+						<div class="space-y-1">
+							<h3 class="text-red-300 font-semibold text-sm">Delete Account &amp; All Associated Data</h3>
+							<p class="text-xs text-gray-300">
+								Permanently erase your user account, personal dictionary, active chat messages, and session data. Any forum threads or replies you created will be anonymized to <strong class="text-white">Anonymous</strong>. This action is immediate and irreversible.
+							</p>
+						</div>
+
+						<form
+							hx-delete="/settings/account"
+							hx-target="#settings-feedback"
+							hx-swap="innerHTML"
+							class="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 pt-1"
+						>
+							<input
+								type="text"
+								name="confirm_delete"
+								required
+								pattern="DELETE"
+								placeholder="Type DELETE to confirm"
+								autocomplete="off"
+								class="bg-[#1e1e1e] border border-red-800/60 focus:border-red-500 rounded px-3 py-2 text-xs text-white placeholder-gray-500 outline-none sm:w-56 font-mono"
+							/>
+							<button
+								type="submit"
+								class="px-4 py-2 rounded bg-red-600 hover:bg-red-500 text-white text-xs font-semibold transition-colors cursor-pointer"
+							>
+								Permanently Delete My Account
+							</button>
+						</form>
+					</div>
+				</div>
+			</section>
+		</div>
+
+		// Sidebar Chat
+		@SideBar([]templ.Component{Chat()})
+	</div>
+
+	<script>
+		function syncThemeButtons() {
+			const current = localStorage.getItem('theme') || 'dark';
+			const darkBtn = document.getElementById('btn-theme-dark');
+			const lightBtn = document.getElementById('btn-theme-light');
+			if (!darkBtn || !lightBtn) return;
+
+			if (current === 'light') {
+				lightBtn.classList.add('ring-2', 'ring-blue-500', 'border-blue-500');
+				darkBtn.classList.remove('ring-2', 'ring-blue-500', 'border-blue-500');
+			} else {
+				darkBtn.classList.add('ring-2', 'ring-blue-500', 'border-blue-500');
+				lightBtn.classList.remove('ring-2', 'ring-blue-500', 'border-blue-500');
+			}
+		}
+
+		function setAppTheme(theme) {
+			localStorage.setItem('theme', theme);
+			if (theme === 'light') {
+				document.documentElement.classList.add('light-mode');
+			} else {
+				document.documentElement.classList.remove('light-mode');
+			}
+			syncThemeButtons();
+		}
+
+		syncThemeButtons();
+	</script>
 }

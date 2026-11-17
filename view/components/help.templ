@@ -1,11 +1,142 @@
 package components
 
 templ Help() {
-	    <div class="flex gap-4 w-full h-[calc(100vh-60px)] p-4 box-border">
-        <textarea
-            class="w-full flex-1 py-6 px-4 bg-brand-dark text-white border border-[#444444] rounded-md outline-none box-border leading-relaxed text-[15px] overflow-y-auto resize-none"
-            readonly
-        >Pane 1 Test</textarea>
-        @SideBar([]templ.Component{Chat()})
-    </div>
+	<div class="flex gap-4 w-full h-[calc(100vh-60px)] p-4 box-border">
+		// Main Help Content Panel
+		<div class="flex-1 bg-brand-dark text-brand-light border border-[#444444] rounded-md p-6 overflow-y-auto space-y-6 box-border leading-relaxed">
+			// Header
+			<div class="border-b border-[#444444] pb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+				<div>
+					<h1 class="text-2xl font-bold text-white mb-1">Help &amp; User Guide</h1>
+					<p class="text-sm text-brand-light/80">
+						Reference documentation { "for" } the Translation Desk, Personal Dictionary, Community Forums, and Global Chat.
+					</p>
+				</div>
+				<a href="/tutorial" class="px-3 py-1.5 rounded bg-blue-600 hover:bg-blue-500 text-white text-xs font-medium transition-colors shrink-0 self-start sm:self-auto">
+					Interactive Tutorial
+				</a>
+			</div>
+
+			// Section 1: Translation Desk
+			<section class="space-y-3">
+				<h2 class="text-lg font-semibold text-white flex items-center gap-2">
+					<span class="bg-blue-600 text-white text-xs px-2 py-0.5 rounded font-mono">DESK</span>
+					Translation Desk &amp; Documents
+				</h2>
+				<div class="bg-[#262626] border border-[#383838] rounded-lg p-4 space-y-3 text-sm">
+					<p class="text-brand-light/90">
+						The Desk splits your workspace into two synchronized panes so you can read source texts alongside your live translation:
+					</p>
+					<ul class="list-disc list-inside space-y-1.5 text-xs text-gray-300 pl-2">
+						<li>
+							<strong class="text-white">Source Pane (Left):</strong> Displays the original document text. Click any word to inspect or add its translation.
+						</li>
+						<li>
+							<strong class="text-white">Translation Pane (Right):</strong> Automatically replaces recognized words with your saved dictionary definitions.
+						</li>
+						<li>
+							<strong class="text-white">Unknown Tokens:</strong> Words displayed as <code class="bg-[#1e1e1e] px-1.5 py-0.5 rounded text-yellow-300 font-mono">[unknown]</code> do not yet have an entry in your personal dictionary.
+						</li>
+						<li>
+							<strong class="text-white">Custom Document Styling:</strong> Uploaded HTML documents render inside an isolated container. Use a standard <code class="bg-[#1e1e1e] px-1.5 py-0.5 rounded text-blue-300 font-mono">&lt;style&gt;</code> block rather than Tailwind utility classes, and keep text inside clean <code class="bg-[#1e1e1e] px-1.5 py-0.5 rounded text-blue-300 font-mono">&lt;p&gt;</code> tags so word tokenization remains accurate.
+						</li>
+					</ul>
+				</div>
+			</section>
+
+			// Section 2: Personal Dictionary
+			<section class="space-y-3">
+				<h2 class="text-lg font-semibold text-white flex items-center gap-2">
+					<span class="bg-purple-600 text-white text-xs px-2 py-0.5 rounded font-mono">DICTIONARY</span>
+					Managing Your Dictionary
+				</h2>
+				<div class="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
+					<div class="bg-[#262626] border border-[#383838] p-4 rounded-lg space-y-1.5">
+						<span class="text-purple-300 font-semibold block text-sm">Exact Token Matching</span>
+						<p class="text-gray-300 leading-relaxed">
+							Lookups are case-insensitive and strip surrounding punctuation (<code class="text-gray-200">!</code>, <code class="text-gray-200">?</code>, <code class="text-gray-200">.</code>), but match exact word forms. Words sharing a root with different suffixes (such as <code class="text-gray-200">name</code> vs. <code class="text-gray-200">names</code>) must be saved as separate entries.
+						</p>
+					</div>
+					<div class="bg-[#262626] border border-[#383838] p-4 rounded-lg space-y-1.5">
+						<span class="text-purple-300 font-semibold block text-sm">Adding &amp; Updating Terms</span>
+						<p class="text-gray-300 leading-relaxed">
+							You can add or edit definitions directly from the Desk or through the <strong class="text-white">Dictionary</strong> tab. Saving a term immediately updates all matching occurrences across your active document.
+						</p>
+					</div>
+				</div>
+			</section>
+
+			// Section 3: Community Forums
+			<section class="space-y-3">
+				<h2 class="text-lg font-semibold text-white flex items-center gap-2">
+					<span class="bg-emerald-600 text-white text-xs px-2 py-0.5 rounded font-mono">COMMUNITY</span>
+					Forums &amp; Discussions
+				</h2>
+				<div class="bg-[#262626] border border-[#383838] rounded-lg p-4 space-y-2 text-xs text-gray-300">
+					<p class="text-sm text-brand-light/90 mb-2">
+						Use the <a href="/community" class="text-blue-400 hover:underline font-medium">Community</a> page to share constructed languages, ask grammar questions, and discuss translation strategies:
+					</p>
+					<ul class="list-disc list-inside space-y-1.5 pl-2">
+						<li><strong class="text-white">General Announcements &amp; News:</strong> Platform updates, community showcases, and general discussion.</li>
+						<li><strong class="text-white">Conlang Q&amp;A &amp; Support:</strong> Get help with morphology, syntax, lexicon building, and document translation.</li>
+						<li><strong class="text-white">Locked Threads:</strong> Threads marked as locked by moderators remain readable but no longer accept new replies.</li>
+					</ul>
+				</div>
+			</section>
+
+			// Section 4: Global Chat & Moderation
+			<section class="space-y-3">
+				<h2 class="text-lg font-semibold text-white flex items-center gap-2">
+					<span class="bg-amber-600 text-white text-xs px-2 py-0.5 rounded font-mono">CHAT &amp; RULES</span>
+					Global Chat &amp; Moderation Policy
+				</h2>
+				<div class="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+					<div class="bg-[#262626] border border-[#383838] p-3 rounded-lg">
+						<span class="text-amber-300 font-mono font-bold block mb-1">100 Chars</span>
+						<p class="text-gray-300">Maximum length per chat message.</p>
+					</div>
+					<div class="bg-[#262626] border border-[#383838] p-3 rounded-lg">
+						<span class="text-amber-300 font-mono font-bold block mb-1">10s Cooldown</span>
+						<p class="text-gray-300">Minimum wait time between consecutive messages.</p>
+					</div>
+					<div class="bg-[#262626] border border-[#383838] p-3 rounded-lg">
+						<span class="text-amber-300 font-mono font-bold block mb-1">24h Auto-Wipe</span>
+						<p class="text-gray-300">Chat history automatically clears after 24 hours.</p>
+					</div>
+					<div class="bg-[#262626] border border-[#383838] p-3 rounded-lg">
+						<span class="text-amber-300 font-mono font-bold block mb-1">Auto-Censor</span>
+						<p class="text-gray-300">Profanity is filtered across both chat and forum posts.</p>
+					</div>
+				</div>
+			</section>
+
+			// Section 5: FAQ
+			<section class="space-y-3 pt-2 border-t border-[#444444]">
+				<h2 class="text-lg font-semibold text-white">Frequently Asked Questions</h2>
+				<div class="space-y-2.5 text-xs">
+					<div class="bg-[#1e1e1e] border border-[#333333] p-3.5 rounded-lg space-y-1">
+						<h3 class="text-white font-semibold text-sm">Why does a word still show [unknown] after I added its root?</h3>
+						<p class="text-gray-300">
+							The dictionary matches complete inflected words rather than partial stems. Add the specific suffixed or inflected form appearing in the document to resolve it.
+						</p>
+					</div>
+					<div class="bg-[#1e1e1e] border border-[#333333] p-3.5 rounded-lg space-y-1">
+						<h3 class="text-white font-semibold text-sm">Why did my chat message fail to send?</h3>
+						<p class="text-gray-300">
+							Ensure you are logged in, your message is under 100 characters, and at least 10 seconds have passed since your last message. You can delete your own recent messages using the delete button next to your post.
+						</p>
+					</div>
+					<div class="bg-[#1e1e1e] border border-[#333333] p-3.5 rounded-lg space-y-1">
+						<h3 class="text-white font-semibold text-sm">Where can I practice before translating files?</h3>
+						<p class="text-gray-300">
+							Open the <strong class="text-white">Desk</strong> tab, search { "for" } <code class="text-blue-300 font-mono">Tutorial</code>, and follow the step-by-step walkthrough on the <a href="/tutorial" class="text-blue-400 hover:underline">Tutorial</a> page.
+						</p>
+					</div>
+				</div>
+			</section>
+		</div>
+
+		// Sidebar Chat
+		@SideBar([]templ.Component{Chat()})
+	</div>
 }
