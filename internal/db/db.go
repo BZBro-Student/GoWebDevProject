@@ -9,26 +9,24 @@ import (
 )
 
 const schema = `
-PRAGMA foreign_keys = ON;
-
 CREATE TABLE IF NOT EXISTS user (
     id TEXT PRIMARY KEY,
-    username TEXT NOT NULL,
-    is_admin INTEGER DEFAULT 0,
+    username TEXT NOT NULL UNIQUE,
+    is_admin INTEGER NOT NULL DEFAULT 0,
     creation_time TEXT NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS user_dictionary (
-    id TEXT,
+    id TEXT NOT NULL,
     user_definition TEXT,
-    foreign_word TEXT,
+    foreign_word TEXT NOT NULL COLLATE NOCASE,
     update_time TEXT,
     PRIMARY KEY (id, foreign_word),
     FOREIGN KEY (id) REFERENCES user(id) ON DELETE CASCADE
 );
 
 CREATE TABLE IF NOT EXISTS server_dictionary (
-    foreign_word TEXT PRIMARY KEY,
+    foreign_word TEXT PRIMARY KEY COLLATE NOCASE,
     english_translations TEXT NOT NULL
 );
 
@@ -48,15 +46,21 @@ CREATE TABLE IF NOT EXISTS global_chat_message (
     FOREIGN KEY (sender_id) REFERENCES user(id) ON DELETE CASCADE
 );
 
+CREATE INDEX IF NOT EXISTS idx_chat_sender ON global_chat_message(sender_id);
+CREATE INDEX IF NOT EXISTS idx_chat_timestamp ON global_chat_message(timestamp);
+
 CREATE TABLE IF NOT EXISTS forum (
     thread_id TEXT PRIMARY KEY,
     category_id TEXT NOT NULL,
     author_id TEXT NOT NULL,
     title TEXT NOT NULL,
-    locked INTEGER DEFAULT 0,
+    locked INTEGER NOT NULL DEFAULT 0,
     created_at TEXT NOT NULL,
     FOREIGN KEY (author_id) REFERENCES user(id) ON DELETE CASCADE
 );
+
+CREATE INDEX IF NOT EXISTS idx_forum_category ON forum(category_id);
+CREATE INDEX IF NOT EXISTS idx_forum_author ON forum(author_id);
 
 CREATE TABLE IF NOT EXISTS replies (
     reply_id TEXT PRIMARY KEY,
@@ -69,6 +73,9 @@ CREATE TABLE IF NOT EXISTS replies (
     FOREIGN KEY (author_id) REFERENCES user(id) ON DELETE CASCADE
 );
 
+CREATE INDEX IF NOT EXISTS idx_replies_thread ON replies(thread_id);
+CREATE INDEX IF NOT EXISTS idx_replies_author ON replies(author_id);
+
 -- Table required for SCS session store
 CREATE TABLE IF NOT EXISTS sessions (
     token TEXT PRIMARY KEY,
@@ -80,24 +87,32 @@ CREATE INDEX IF NOT EXISTS sessions_expiry_idx ON sessions(expiry);
 `
 
 func InitDB(dbPath string) (*sql.DB, error) {
-	// Enable Foreign Keys, WAL mode (for concurrent web reads/writes), and 5s Busy Timeout
-	dsn := fmt.Sprintf("%s?_foreign_keys=on&_journal_mode=WAL&_busy_timeout=5000", dbPath)
+	sep := "?"
+	if strings.Contains(dbPath, "?") {
+		sep = "&"
+	}
+	dsn := fmt.Sprintf("%s%s_foreign_keys=on&_journal_mode=WAL&_busy_timeout=5000", dbPath, sep)
 
 	db, err := sql.Open("sqlite3", dsn)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open database: %w", err)
 	}
 
+	// Prevent SQLITE_BUSY under concurrent writes and preserve :memory: state across queries
+	db.SetMaxOpenConns(1)
+
 	if err := db.Ping(); err != nil {
+		_ = db.Close()
 		return nil, fmt.Errorf("failed to connect to database: %w", err)
 	}
 
 	if _, err := db.Exec(schema); err != nil {
+		_ = db.Close()
 		return nil, fmt.Errorf("failed to execute schema: %w", err)
 	}
 
-	// Auto-migration: Ensure translated_content exists on older databases
 	if err := migrateDocumentTable(db); err != nil {
+		_ = db.Close()
 		return nil, fmt.Errorf("failed to migrate document table: %w", err)
 	}
 
@@ -117,17 +132,20 @@ func migrateDocumentTable(db *sql.DB) error {
 		var name, ctype string
 		var notnull, pk int
 		var dfltValue sql.NullString
-		if err := rows.Scan(&cid, &name, &ctype, &notnull, &dfltValue, &pk); err == nil {
-			if strings.EqualFold(name, "translated_content") {
-				hasTranslatedColumn = true
-				break
-			}
+		if err := rows.Scan(&cid, &name, &ctype, &notnull, &dfltValue, &pk); err != nil {
+			return fmt.Errorf("failed to scan document table info: %w", err)
 		}
+		if strings.EqualFold(name, "translated_content") {
+			hasTranslatedColumn = true
+			break
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return fmt.Errorf("error iterating document table info: %w", err)
 	}
 
 	if !hasTranslatedColumn {
-		_, err := db.Exec("ALTER TABLE document ADD COLUMN translated_content TEXT")
-		if err != nil {
+		if _, err := db.Exec("ALTER TABLE document ADD COLUMN translated_content TEXT"); err != nil {
 			return fmt.Errorf("failed to add translated_content column: %w", err)
 		}
 	}
