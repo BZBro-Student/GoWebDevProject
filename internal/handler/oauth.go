@@ -3,6 +3,7 @@ package handler
 import (
 	"AGoTTHT/internal/db"
 	"crypto/rand"
+	"crypto/subtle"
 	"database/sql"
 	"encoding/hex"
 	"encoding/json"
@@ -16,12 +17,18 @@ import (
 	"golang.org/x/oauth2/github"
 )
 
+const (
+	sessionKeyOAuthState = "oauth_state"
+	sessionKeyUserID     = "user_id"
+	sessionKeyIsAdmin    = "isAdmin"
+)
+
 func getOAuthConfig() *oauth2.Config {
 	return &oauth2.Config{
 		ClientID:     os.Getenv("GITHUB_CLIENT_ID"),
 		ClientSecret: os.Getenv("GITHUB_CLIENT_SECRET"),
 		RedirectURL:  os.Getenv("GITHUB_REDIRECT_URL"),
-		Scopes:       []string{"read:user", "user:email"},
+		Scopes:       []string{"read:user"},
 		Endpoint:     github.Endpoint,
 	}
 }
@@ -33,37 +40,52 @@ type GitHubUser struct {
 	AvatarURL string `json:"avatar_url"`
 }
 
-func generateStateToken() string {
+func generateStateToken() (string, error) {
 	b := make([]byte, 16)
 	if _, err := rand.Read(b); err != nil {
-		log.Printf("Failed to generate CSRF state: %v", err)
+		return "", fmt.Errorf("generate CSRF state: %w", err)
 	}
-	return hex.EncodeToString(b)
+	return hex.EncodeToString(b), nil
 }
 
 func HandleGitHubLogin(sm *scs.SessionManager) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		state := generateStateToken()
+		state, err := generateStateToken()
+		if err != nil {
+			log.Printf("OAuth state generation error: %v", err)
+			http.Error(w, "Internal server error", http.StatusInternalServerError)
+			return
+		}
 
-		sm.Put(r.Context(), "oauth_state", state)
+		sm.Put(r.Context(), sessionKeyOAuthState, state)
 
-		config := getOAuthConfig()
-		url := config.AuthCodeURL(state)
+		url := getOAuthConfig().AuthCodeURL(state)
 		http.Redirect(w, r, url, http.StatusTemporaryRedirect)
 	}
 }
 
 func HandleGitHubCallback(database *sql.DB, sm *scs.SessionManager) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		storedState := sm.PopString(r.Context(), "oauth_state")
+		storedState := sm.PopString(r.Context(), sessionKeyOAuthState)
 		queryState := r.URL.Query().Get("state")
 
-		if storedState == "" || storedState != queryState {
+		if storedState == "" || subtle.ConstantTimeCompare([]byte(storedState), []byte(queryState)) != 1 {
 			http.Error(w, "Invalid OAuth state", http.StatusBadRequest)
 			return
 		}
 
+		if oauthErr := r.URL.Query().Get("error"); oauthErr != "" {
+			log.Printf("GitHub OAuth denied or failed: %s", oauthErr)
+			http.Redirect(w, r, "/login", http.StatusSeeOther)
+			return
+		}
+
 		code := r.URL.Query().Get("code")
+		if code == "" {
+			http.Error(w, "Missing OAuth code", http.StatusBadRequest)
+			return
+		}
+
 		config := getOAuthConfig()
 		token, err := config.Exchange(r.Context(), code)
 		if err != nil {
@@ -75,14 +97,28 @@ func HandleGitHubCallback(database *sql.DB, sm *scs.SessionManager) http.Handler
 		client := config.Client(r.Context(), token)
 		resp, err := client.Get("https://api.github.com/user")
 		if err != nil {
+			log.Printf("GitHub profile request error: %v", err)
 			http.Error(w, "Failed to fetch user profile", http.StatusInternalServerError)
 			return
 		}
 		defer resp.Body.Close()
 
+		if resp.StatusCode != http.StatusOK {
+			log.Printf("GitHub API returned unexpected status: %d", resp.StatusCode)
+			http.Error(w, "Failed to fetch user profile", http.StatusBadGateway)
+			return
+		}
+
 		var ghUser GitHubUser
 		if err := json.NewDecoder(resp.Body).Decode(&ghUser); err != nil {
+			log.Printf("GitHub profile decode error: %v", err)
 			http.Error(w, "Failed to parse user profile", http.StatusInternalServerError)
+			return
+		}
+
+		if ghUser.ID == 0 || ghUser.Login == "" {
+			log.Printf("GitHub profile missing required fields: %+v", ghUser)
+			http.Error(w, "Invalid user profile received", http.StatusBadGateway)
 			return
 		}
 
@@ -94,15 +130,13 @@ func HandleGitHubCallback(database *sql.DB, sm *scs.SessionManager) http.Handler
 		}
 
 		if err := sm.RenewToken(r.Context()); err != nil {
+			log.Printf("Session renewal error: %v", err)
 			http.Error(w, "Session error", http.StatusInternalServerError)
 			return
 		}
 
-		// Store user ID explicitly as a string under both key styles
-		userIDStr := fmt.Sprintf("%v", user.ID)
-		sm.Put(r.Context(), "user_id", userIDStr)
-		sm.Put(r.Context(), "userID", userIDStr)
-		sm.Put(r.Context(), "isAdmin", user.IsAdmin)
+		sm.Put(r.Context(), sessionKeyUserID, fmt.Sprint(user.ID))
+		sm.Put(r.Context(), sessionKeyIsAdmin, user.IsAdmin)
 
 		http.Redirect(w, r, "/", http.StatusSeeOther)
 	}
@@ -110,7 +144,14 @@ func HandleGitHubCallback(database *sql.DB, sm *scs.SessionManager) http.Handler
 
 func HandleLogout(sm *scs.SessionManager) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		_ = sm.Destroy(r.Context())
+		if r.Method != http.MethodPost {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+
+		if err := sm.Destroy(r.Context()); err != nil {
+			log.Printf("Session destroy error: %v", err)
+		}
 		http.Redirect(w, r, "/login", http.StatusSeeOther)
 	}
 }
