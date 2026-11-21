@@ -35,15 +35,19 @@ type datamuseResult struct {
 	Word string `json:"word"`
 }
 
-// Titles and honorifics that should remain untranslated when attached to names
+// Reused across concurrent workers to enable HTTP keep-alive connection pooling.
+var datamuseClient = &http.Client{Timeout: 5 * time.Second}
+
+// Titles and honorifics that should remain untranslated when attached to names.
 var commonTitles = map[string]bool{
 	"don": true, "sir": true, "lady": true, "lord": true,
 	"count": true, "duke": true, "king": true, "queen": true,
 	"prince": true, "princess": true, "friar": true, "saint": true,
 }
 
+// Excludes "i" so the English first-person pronoun is translated normally.
 var romanNumerals = map[string]bool{
-	"i": true, "ii": true, "iii": true, "iv": true, "v": true,
+	"ii": true, "iii": true, "iv": true, "v": true,
 	"vi": true, "vii": true, "viii": true, "ix": true, "x": true,
 	"xi": true, "xii": true, "xiii": true, "xiv": true, "xv": true,
 }
@@ -78,12 +82,15 @@ func isNumberOrReference(s string) bool {
 	if romanNumerals[strings.ToLower(s)] {
 		return true
 	}
+	hasDigit := false
 	for _, r := range s {
-		if !unicode.IsDigit(r) && r != ':' {
+		if unicode.IsDigit(r) {
+			hasDigit = true
+		} else if r != ':' {
 			return false
 		}
 	}
-	return true
+	return hasDigit
 }
 
 func isCapitalized(s string) bool {
@@ -104,13 +111,17 @@ func isAllCaps(s string) bool {
 	return hasLetter
 }
 
+func normalizeApostrophes(s string) string {
+	return strings.ReplaceAll(s, "’", "'")
+}
+
 func analyzeCorpus(words []string) (properNouns map[string]bool, canonicalCasing map[string]string) {
 	lowercaseCounts := make(map[string]int)
 	canonicalCasing = make(map[string]string)
 	properNouns = make(map[string]bool)
 
 	for _, w := range words {
-		cleaned := strings.TrimSpace(w)
+		cleaned := normalizeApostrophes(strings.TrimSpace(w))
 		if cleaned == "" || isNumberOrReference(cleaned) {
 			continue
 		}
@@ -179,6 +190,7 @@ func ExtractWords(r io.Reader) ([]string, error) {
 					cleaned := strings.TrimFunc(w, func(r rune) bool {
 						return unicode.IsPunct(r) || unicode.IsSymbol(r)
 					})
+					cleaned = normalizeApostrophes(cleaned)
 					if cleaned != "" {
 						words = append(words, cleaned)
 					}
@@ -207,8 +219,7 @@ func TranslationExists(db DBQuerier, searchWord string) (bool, error) {
 func FetchSynonyms(word string) ([]string, error) {
 	apiURL := fmt.Sprintf("https://api.datamuse.com/words?ml=%s", url.QueryEscape(word))
 
-	client := &http.Client{Timeout: 5 * time.Second}
-	resp, err := client.Get(apiURL)
+	resp, err := datamuseClient.Get(apiURL)
 	if err != nil {
 		return nil, fmt.Errorf("failed to reach datamuse API: %w", err)
 	}
@@ -359,18 +370,6 @@ func AddtoDB(words []string, db *sql.DB) {
 	for _, item := range payloads {
 		input := strings.ToLower(item.input)
 
-		if item.isProper {
-			insertQuery := `
-                INSERT INTO server_dictionary (foreign_word, english_translations) 
-                VALUES (?, json_array(?))
-                ON CONFLICT(foreign_word) DO UPDATE SET 
-                    english_translations = json_insert(english_translations, '$[#]', ?)
-            `
-			_, _ = tx.Exec(insertQuery, input, input, input)
-			countInserted++
-			continue
-		}
-
 		exists, err := TranslationExists(tx, input)
 		if err != nil {
 			fmt.Printf("  [WARN] Error checking existence for %q: %v\n", input, err)
@@ -379,6 +378,22 @@ func AddtoDB(words []string, db *sql.DB) {
 		}
 		if exists {
 			countExisting++
+			continue
+		}
+
+		if item.isProper {
+			insertQuery := `
+                INSERT INTO server_dictionary (foreign_word, english_translations) 
+                VALUES (?, json_array(?))
+                ON CONFLICT(foreign_word) DO UPDATE SET 
+                    english_translations = json_insert(english_translations, '$[#]', ?)
+            `
+			if _, err := tx.Exec(insertQuery, input, input, input); err != nil {
+				fmt.Printf("  [ERROR] Failed to insert proper noun %q: %v\n", input, err)
+				countSkipped++
+			} else {
+				countInserted++
+			}
 			continue
 		}
 
@@ -454,10 +469,12 @@ func AddtoDB(words []string, db *sql.DB) {
 func LoadDictionary(db DBQuerier) (map[string]string, error) {
 	dict := make(map[string]string)
 
+	// DESC orders self-mapped proper nouns (1) first so the guard below prevents
+	// non-proper translations (0) from overwriting them.
 	query := `
         SELECT LOWER(json_each.value) AS english_word, server_dictionary.foreign_word
         FROM server_dictionary, json_each(server_dictionary.english_translations)
-        ORDER BY CASE WHEN LOWER(server_dictionary.foreign_word) = LOWER(json_each.value) THEN 1 ELSE 0 END ASC
+        ORDER BY CASE WHEN LOWER(server_dictionary.foreign_word) = LOWER(json_each.value) THEN 1 ELSE 0 END DESC
     `
 	rows, err := db.Query(query)
 	if err != nil {
@@ -468,7 +485,7 @@ func LoadDictionary(db DBQuerier) (map[string]string, error) {
 	for rows.Next() {
 		var english, foreign string
 		if err := rows.Scan(&english, &foreign); err == nil {
-			english = strings.TrimSpace(strings.ToLower(english))
+			english = normalizeApostrophes(strings.TrimSpace(strings.ToLower(english)))
 			foreign = strings.TrimSpace(foreign)
 			if english != "" && foreign != "" {
 				if existing, exists := dict[english]; exists && strings.ToLower(existing) == english && strings.ToLower(foreign) != english {
@@ -502,7 +519,7 @@ func LoadUserDictionary(db DBQuerier, userID string) (map[string]string, error) 
 	for rows.Next() {
 		var english, userDef string
 		if err := rows.Scan(&english, &userDef); err == nil {
-			english = strings.TrimSpace(strings.ToLower(english))
+			english = normalizeApostrophes(strings.TrimSpace(strings.ToLower(english)))
 			userDef = strings.TrimSpace(userDef)
 			if english != "" && userDef != "" {
 				dict[english] = userDef
@@ -524,14 +541,12 @@ func TranslateUserHTML(englishHTML string, userDict map[string]string) (string, 
 }
 
 func processHTML(englishHTML string, dict map[string]string, fallbackUnknown bool) (string, error) {
-	rawHTML := stdhtml.UnescapeString(englishHTML)
-
 	contextNode := &nethtml.Node{
 		Type:     nethtml.ElementNode,
 		Data:     "body",
 		DataAtom: atom.Body,
 	}
-	nodes, err := nethtml.ParseFragment(strings.NewReader(rawHTML), contextNode)
+	nodes, err := nethtml.ParseFragment(strings.NewReader(englishHTML), contextNode)
 	if err != nil {
 		return "", err
 	}
@@ -560,7 +575,15 @@ func processHTML(englishHTML string, dict map[string]string, fallbackUnknown boo
 	return buf.String(), nil
 }
 
-// translateTextString translates tokens while preserving formatting, casing, numbers, and fallback handling
+func isWordJoiner(r rune) bool {
+	return r == '\'' || r == '’' || r == '-'
+}
+
+func isWordChar(r rune) bool {
+	return unicode.IsLetter(r) || unicode.IsDigit(r)
+}
+
+// translateTextString translates tokens while preserving formatting, casing, numbers, and fallback handling.
 func translateTextString(text string, dict map[string]string, fallbackUnknown bool) string {
 	var builder strings.Builder
 	var wordBuf strings.Builder
@@ -570,7 +593,7 @@ func translateTextString(text string, dict map[string]string, fallbackUnknown bo
 			return
 		}
 		original := wordBuf.String()
-		lower := strings.ToLower(original)
+		lower := normalizeApostrophes(strings.ToLower(original))
 
 		if isNumberOrReference(original) {
 			builder.WriteString(original)
@@ -599,8 +622,11 @@ func translateTextString(text string, dict map[string]string, fallbackUnknown bo
 		wordBuf.Reset()
 	}
 
-	for _, r := range text {
-		if unicode.IsLetter(r) || unicode.IsDigit(r) {
+	runes := []rune(text)
+	for i, r := range runes {
+		if isWordChar(r) {
+			wordBuf.WriteRune(r)
+		} else if isWordJoiner(r) && wordBuf.Len() > 0 && i+1 < len(runes) && isWordChar(runes[i+1]) {
 			wordBuf.WriteRune(r)
 		} else {
 			flushWord()
